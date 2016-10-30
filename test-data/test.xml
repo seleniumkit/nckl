@@ -1,0 +1,33 @@
+<qa:browsers xmlns:qa="urn:config.gridrouter.qatools.ru">
+    <browser name="firefox" defaultVersion="33.0">
+        <version number="33.0">
+            <region name="one">
+                <host name="firefox33-one-1.example.com" port="4444" count="5"></host>
+                <host name="firefox33-one-2.example.com" port="4444" count="5"></host>
+            </region>
+            <region name="two">
+                <host name="firefox33-two-1.example.com" port="4444" count="5"></host>
+                <host name="firefox33-two-2.example.com" port="4444" count="5"></host>
+                <host name="firefox33-two-3.example.com" port="4444" count="5"></host>
+            </region>
+        </version>
+    </browser>
+    <browser name="chrome" defaultVersion="42.0">
+        <version number="42.0">
+            <region name="one">
+                <host name="chrome42-one-1.example.com" port="4444" count="5"></host>
+            </region>
+            <region name="two">
+                <host name="chrome42-two-1.example.com" port="4444" count="5"></host>
+                <host name="chrome42-two-2.example.com" port="4444" count="5"></host>
+                <host name="chrome42-two-3.example.com" port="4444" count="5"></host>
+                <host name="chrome42-two-4.example.com" port="4444" count="5"></host>
+            </region>
+            <region name="three">
+                <host name="chrome42-three-1.example.com" port="4444" count="5"></host>
+                <host name="chrome42-three-2.example.com" port="4444" count="5"></host>
+                <host name="chrome42-three-3.example.com" port="4444" count="5"></host>
+            </region>
+        </version>
+    </browser>
+</qa:browsers>
