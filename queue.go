@@ -14,10 +14,11 @@ type Queue interface {
 
 func CreateQueue(initialCapacity int) *queueImpl {
 	var channels []chan struct{}
-	channels = append(channels, make(chan struct{}, initialCapacity))
-	return &queueImpl{
+	ret := &queueImpl{
 		channels: channels,
 	}
+	ret.SetCapacity(initialCapacity)
+	return ret
 }
 
 type queueImpl struct {
