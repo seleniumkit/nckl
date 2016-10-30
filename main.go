@@ -17,7 +17,6 @@ const (
 	badRequestPath    = "/badRequest"
 	unknownUserPath   = "/unknownUser"
 	badRequestMessage = "msg"
-	maxConnections    = 10 //TODO: this one should come from quota
 )
 
 var (
@@ -39,19 +38,28 @@ func scheduleCapacitiesUpdate() chan struct{} {
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
-				{
-					for _, quotaState := range state {
-						refreshCapacities(*quotaState)
-					}
+				case <-ticker.C: refreshAllCapacities()
+				case <-quit: {
+					ticker.Stop()
+					return
 				}
-			case <-quit:
-				ticker.Stop()
-				return
 			}
 		}
 	}()
 	return quit
+}
+
+func refreshAllCapacities() {
+	for quotaName, quotaState := range state {
+		for browserId, browserState := range *quotaState {
+			maxConnections := quota.MaxConnections(
+				quotaName,
+				browserId.name,
+				browserId.version,
+			)
+			refreshCapacities(maxConnections, *browserState)
+		}
+	}
 }
 
 func init() {
