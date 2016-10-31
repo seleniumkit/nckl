@@ -64,14 +64,6 @@ func init() {
 	flag.Parse()
 }
 
-func shutdown() {
-	log.Println("shutting down server")
-	//TODO: wait for all connections to close with timeout
-	close(scheduler)
-	close(directoryWatcher)
-	os.Exit(0)
-}
-
 func waitForShutdown(shutdownAction func()) {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -81,8 +73,14 @@ func waitForShutdown(shutdownAction func()) {
 
 func main() {
 	directoryWatcher = LoadAndWatch(*quotaDir, &quota)
+	defer close(directoryWatcher)
 	scheduler = scheduleCapacitiesUpdate()
-	go waitForShutdown(shutdown)
+	defer close(scheduler)
+	go waitForShutdown(func(){
+		log.Println("shutting down server")
+		//TODO: wait for all connections to close with timeout
+		os.Exit(0)
+	})
 	log.Println("listening on", *listen)
 	http.ListenAndServe(*listen, mux())
 }
