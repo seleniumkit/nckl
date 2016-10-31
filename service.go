@@ -36,13 +36,13 @@ func queue(r *http.Request) {
 
 	browserName := caps.browser()
 	version := caps.version()
-	browserId := BrowserId{name: browserName, version:version}
-	
+	browserId := BrowserId{name: browserName, version: version}
+
 	if _, ok := quotaState[browserId]; !ok {
 		quotaState[browserId] = &BrowserState{}
 	}
 	browserState := *quotaState[browserId]
-	
+
 	processName := caps.processName()
 	priority := caps.processPriority()
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
@@ -157,7 +157,7 @@ func status(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			status = append(status, BrowserStatus{
-				name: browserId.String(),
+				name:      browserId.String(),
 				processes: processes,
 			})
 		}

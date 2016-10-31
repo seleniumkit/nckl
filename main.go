@@ -36,8 +36,10 @@ func scheduleCapacitiesUpdate() chan struct{} {
 	go func() {
 		for {
 			select {
-				case <-ticker.C: refreshAllCapacities()
-				case <-quit: {
+			case <-ticker.C:
+				refreshAllCapacities()
+			case <-quit:
+				{
 					ticker.Stop()
 					return
 				}
@@ -76,7 +78,7 @@ func main() {
 	defer close(directoryWatcher)
 	scheduler = scheduleCapacitiesUpdate()
 	defer close(scheduler)
-	go waitForShutdown(func(){
+	go waitForShutdown(func() {
 		log.Println("shutting down server")
 		//TODO: wait for all connections to close with timeout
 		os.Exit(0)

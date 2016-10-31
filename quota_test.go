@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"github.com/aandryashin/matchers"
+	"testing"
 )
 
 func TestLoadAndWatch(t *testing.T) {

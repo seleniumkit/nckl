@@ -13,14 +13,14 @@ type Process struct {
 }
 
 type BrowserStatus struct {
-	name      string `json:"name"`
+	name      string                   `json:"name"`
 	processes map[string]ProcessStatus `json:"processes"`
 }
 
 type ProcessStatus struct {
-	priority   int    `json:"priority"`
-	queued     int    `json:"queued"`
-	processing int    `json:"processing"`
+	priority   int `json:"priority"`
+	queued     int `json:"queued"`
+	processing int `json:"processing"`
 }
 
 type ProcessMetrics map[string]int
@@ -28,7 +28,7 @@ type ProcessMetrics map[string]int
 type BrowserState map[string]*Process
 
 type BrowserId struct {
-	name string
+	name    string
 	version string
 }
 

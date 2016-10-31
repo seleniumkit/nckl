@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"github.com/aandryashin/matchers"
+	"testing"
 	"time"
 )
 
@@ -46,7 +46,9 @@ func actionTimeouts(action func()) bool {
 		timeout <- true
 	}()
 	select {
-	case <-ch: return false
-	case <-timeout: return true
+	case <-ch:
+		return false
+	case <-timeout:
+		return true
 	}
 }
