@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,7 +28,6 @@ var (
 	quota            = make(Quota)
 	scheduler        chan struct{}
 	directoryWatcher chan struct{}
-	listener         net.Listener
 )
 
 func scheduleCapacitiesUpdate() chan struct{} {
@@ -69,9 +67,9 @@ func init() {
 func shutdown() {
 	log.Println("shutting down server")
 	//TODO: wait for all connections to close with timeout
-	listener.Close()
 	close(scheduler)
 	close(directoryWatcher)
+	os.Exit(0)
 }
 
 func waitForShutdown(shutdownAction func()) {
@@ -81,20 +79,10 @@ func waitForShutdown(shutdownAction func()) {
 	shutdownAction()
 }
 
-func serve() {
-	server := &http.Server{Addr: *listen, Handler: mux()}
-	listener, err := net.Listen("tcp", server.Addr)
-	if err != nil {
-		log.Printf("Failed to listen on %s: %v\n", *listen, err)
-		return
-	}
-	log.Println("listening on", *listen)
-	server.Serve(listener)
-}
-
 func main() {
 	directoryWatcher = LoadAndWatch(*quotaDir, &quota)
 	scheduler = scheduleCapacitiesUpdate()
-	go serve()
-	waitForShutdown(shutdown)
+	go waitForShutdown(shutdown)
+	log.Println("listening on", *listen)
+	http.ListenAndServe(*listen, mux())
 }
