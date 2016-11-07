@@ -21,7 +21,7 @@ var (
 func reloadProperties(h *PropertiesFile) {
 	authLock.Lock()
 	defer authLock.Unlock()
-	log.Printf("loading users from [%s]", h.Path)
+	log.Printf("loading users from [%s]\n", h.Path)
 	r, err := os.Open(h.Path)
 	if err != nil {
 		log.Printf("failed to read users from [%s]: %v\n", h.Path, err)
