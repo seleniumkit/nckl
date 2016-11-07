@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 type PropertiesFile struct {
@@ -13,10 +14,17 @@ type PropertiesFile struct {
 	Users map[string]string
 }
 
+var (
+	loadLock sync.Mutex
+)
+
 func reloadProperties(h *PropertiesFile) {
+	loadLock.Lock()
+	defer loadLock.Unlock()
+	log.Printf("loading users from [%s]", h.Path)
 	r, err := os.Open(h.Path)
 	if err != nil {
-		log.Printf("Failed to read users list file [%s]: %v\n", h.Path, err)
+		log.Printf("failed to read users list file [%s]: %v\n", h.Path, err)
 		return
 	}
 	csv_reader := csv.NewReader(r)
@@ -26,7 +34,7 @@ func reloadProperties(h *PropertiesFile) {
 
 	records, err := csv_reader.ReadAll()
 	if err != nil {
-		log.Printf("Invalid format of users list file [%s]: %v\n", h.Path, err)
+		log.Printf("invalid format of users list file [%s]: %v\n", h.Path, err)
 		return
 	}
 	h.Users = make(map[string]string)

@@ -100,7 +100,8 @@ func load(quotaDir string, quota *Quota) {
 
 func loadFile(file string, quota *Quota) {
 	loadLock.Lock()
-	log.Printf("loading quota information for file [%s]\n", file)
+	defer loadLock.Unlock()
+	log.Printf("loading quota information from [%s]\n", file)
 	browsers, err := fileToBrowsers(file)
 	if err != nil {
 		log.Printf("%v\n", err)
@@ -109,7 +110,6 @@ func loadFile(file string, quota *Quota) {
 	// Just file name without extension
 	quotaName := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	browsersToQuota(*quota, quotaName, *browsers)
-	loadLock.Unlock()
 }
 
 func fileToBrowsers(file string) (*Browsers, error) {
