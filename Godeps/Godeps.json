@@ -1,0 +1,37 @@
+{
+	"ImportPath": "github.com/vania-pooh/nckl",
+	"GoVersion": "go1.7",
+	"GodepVersion": "v74",
+	"Deps": [
+		{
+			"ImportPath": "github.com/aandryashin/matchers",
+			"Rev": "5eb67beb188b5076812683a96c13bef79d970fd8"
+		},
+		{
+			"ImportPath": "github.com/abbot/go-http-auth",
+			"Comment": "v0.3-14-gcb43723",
+			"Rev": "cb4372376e1e00e9f6ab9ec142e029302c9e7140"
+		},
+		{
+			"ImportPath": "github.com/fsnotify/fsnotify",
+			"Comment": "v1.4.2-1-gbd2828f",
+			"Rev": "bd2828f9f176e52d7222e565abb2d338d3f3c103"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/bcrypt",
+			"Rev": "5f4e837b98443e9e7a65072235205993af565d85"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/blowfish",
+			"Rev": "5f4e837b98443e9e7a65072235205993af565d85"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "4d38db76854b199960801a1734443fd02870d7e1"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "002cbb5f952456d0c50e0d2aff17ea5eca716979"
+		}
+	]
+}
