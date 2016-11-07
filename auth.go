@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/csv"
+	"fmt"
 	"github.com/abbot/go-http-auth"
 	"log"
 	"os"
@@ -41,9 +44,15 @@ func reloadProperties(h *PropertiesFile) {
 	for _, record := range records {
 		userPasswordPair := strings.Split(record[0], ":")
 		if len(userPasswordPair) == 2 {
-			h.Users[userPasswordPair[0]] = userPasswordPair[1]
+			h.Users[userPasswordPair[0]] = base64SHA1(userPasswordPair[1])
 		}
 	}
+}
+
+func base64SHA1(s string) string {
+	d := sha1.New()
+	d.Write([]byte(s))
+	return fmt.Sprintf("{SHA}%s", base64.StdEncoding.EncodeToString(d.Sum(nil)))
 }
 
 func PropertiesFileProvider(filename string) auth.SecretProvider {

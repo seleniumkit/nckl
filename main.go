@@ -84,5 +84,5 @@ func main() {
 		os.Exit(0)
 	})
 	log.Println("listening on", *listen)
-	http.ListenAndServe(*listen, mux())
+	http.ListenAndServe(*listen, mux(*usersFile))
 }

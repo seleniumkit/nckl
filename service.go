@@ -165,21 +165,21 @@ func status(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&status)
 }
 
-func requireBasicAuth(handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+func requireBasicAuth(usersFile string, handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	authenticator := auth.NewBasicAuthenticator(
 		"Selenium Load Balancer",
-		PropertiesFileProvider(*usersFile),
+		PropertiesFileProvider(usersFile),
 	)
 	return authenticator.Wrap(func(w http.ResponseWriter, r *auth.AuthenticatedRequest) {
 		handler(w, &r.Request)
 	})
 }
 
-func mux() http.Handler {
+func mux(usersFile string) http.Handler {
 	mux := http.NewServeMux()
 	proxyFunc := (&httputil.ReverseProxy{Director: queue}).ServeHTTP
-	mux.HandleFunc(queuePath, requireBasicAuth(proxyFunc))
-	mux.HandleFunc(statusPath, requireBasicAuth(status))
+	mux.HandleFunc(queuePath, requireBasicAuth(usersFile, proxyFunc))
+	mux.HandleFunc(statusPath, requireBasicAuth(usersFile, status))
 	mux.HandleFunc(badRequestPath, badRequest)
 	mux.HandleFunc(unknownUserPath, unknownUser)
 	return mux

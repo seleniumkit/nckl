@@ -7,10 +7,10 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"os"
 )
 
 type Browsers struct {
