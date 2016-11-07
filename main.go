@@ -84,5 +84,6 @@ func main() {
 		os.Exit(0)
 	})
 	log.Println("listening on", *listen)
+	log.Println("destination host is", *destination)
 	http.ListenAndServe(*listen, mux(*usersFile))
 }
