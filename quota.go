@@ -45,7 +45,7 @@ type Host struct {
 type Quota map[string]int
 
 var (
-	loadLock sync.Mutex
+	quotaLock sync.Mutex
 )
 
 func LoadAndWatch(quotaDir string, quota *Quota) chan struct{} {
@@ -99,8 +99,8 @@ func load(quotaDir string, quota *Quota) {
 }
 
 func loadFile(file string, quota *Quota) {
-	loadLock.Lock()
-	defer loadLock.Unlock()
+	quotaLock.Lock()
+	defer quotaLock.Unlock()
 	log.Printf("loading quota information from [%s]\n", file)
 	browsers, err := fileToBrowsers(file)
 	if err != nil {

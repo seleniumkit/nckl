@@ -15,12 +15,12 @@ type PropertiesFile struct {
 }
 
 var (
-	loadLock sync.Mutex
+	authLock sync.Mutex
 )
 
 func reloadProperties(h *PropertiesFile) {
-	loadLock.Lock()
-	defer loadLock.Unlock()
+	authLock.Lock()
+	defer authLock.Unlock()
 	log.Printf("loading users from [%s]", h.Path)
 	r, err := os.Open(h.Path)
 	if err != nil {
