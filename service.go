@@ -8,6 +8,14 @@ import (
 	"net/http/httputil"
 )
 
+const (
+	statusPath        = "/status"
+	queuePath         = "/session"
+	badRequestPath    = "/badRequest"
+	unknownUserPath   = "/unknownUser"
+	badRequestMessage = "msg"
+)
+
 func badRequest(w http.ResponseWriter, r *http.Request) {
 	msg := r.URL.Query().Get(badRequestMessage)
 	if msg == "" {
@@ -21,6 +29,7 @@ func unknownUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func queue(r *http.Request) {
+	r.URL.Scheme = "http"
 	quotaName, _, _ := r.BasicAuth()
 	if _, ok := state[quotaName]; !ok {
 		state[quotaName] = &QuotaState{}

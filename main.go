@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-const (
-	statusPath        = "/status"
-	queuePath         = "/session"
-	badRequestPath    = "/badRequest"
-	unknownUserPath   = "/unknownUser"
-	badRequestMessage = "msg"
-)
-
 var (
 	listen           = flag.String("listen", ":8080", "Host and port to listen to")
 	destination      = flag.String("destination", ":4444", "Host and port to proxy to")
