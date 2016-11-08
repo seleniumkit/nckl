@@ -73,7 +73,9 @@ func queue(r *http.Request) {
 func redirectToBadRequest(r *http.Request, msg string) {
 	r.Method = "GET"
 	r.URL.Path = badRequestPath
-	r.URL.Query().Set(badRequestMessage, msg)
+	values := r.URL.Query()
+	values.Set(badRequestMessage, msg)
+	r.URL.RawQuery = values.Encode()
 }
 
 func parsePath(url *url.URL) (error, string, string, string, int, string) {
