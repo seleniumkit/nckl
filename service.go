@@ -18,7 +18,6 @@ const (
 	statusPath        = "/status"
 	queuePath         = wdHub
 	badRequestPath    = "/badRequest"
-	unknownUserPath   = "/unknownUser"
 	badRequestMessage = "msg"
 	slash             = "/"
 )
@@ -29,10 +28,6 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 		msg = "bad request"
 	}
 	http.Error(w, msg, http.StatusBadRequest)
-}
-
-func unknownUser(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Unknown user", http.StatusUnauthorized)
 }
 
 func queue(r *http.Request) {
@@ -206,6 +201,5 @@ func mux(usersFile string) http.Handler {
 	mux.HandleFunc(queuePath, requireBasicAuth(usersFile, proxyFunc))
 	mux.HandleFunc(statusPath, requireBasicAuth(usersFile, status))
 	mux.HandleFunc(badRequestPath, badRequest)
-	mux.HandleFunc(unknownUserPath, unknownUser)
 	return mux
 }
