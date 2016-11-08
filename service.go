@@ -54,9 +54,7 @@ func queue(r *http.Request) {
 
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
-	go func() {
-		process.AwaitQueue <- struct{}{}
-	}()
+
 	if process.CapacityQueue.Capacity() == 0 {
 		refreshCapacities(maxConnections, browserState)
 		if process.CapacityQueue.Capacity() == 0 {
@@ -64,6 +62,10 @@ func queue(r *http.Request) {
 			return
 		}
 	}
+
+	go func() {
+		process.AwaitQueue <- struct{}{}
+	}()
 	process.CapacityQueue.Push()
 	<-process.AwaitQueue
 	r.URL.Host = *destination
