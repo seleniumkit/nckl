@@ -38,7 +38,7 @@ func createUrl(path string) string {
 }
 
 func TestParseCorrectPath(t *testing.T) {
-	testUrl, _ := url.Parse("http://example.com/firefox/42.0/test-process/3/session")
+	testUrl, _ := url.Parse("http://example.com/wd/hub/firefox/42.0/test-process/3/session")
 	err, browserName, version, processName, priority, command := parsePath(testUrl)
 	AssertThat(t, err, Is{nil})
 	AssertThat(t, browserName, EqualTo{"firefox"})
@@ -49,7 +49,7 @@ func TestParseCorrectPath(t *testing.T) {
 }
 
 func TestParsePathInvalidPriority(t *testing.T) {
-	testUrl, _ := url.Parse("http://example.com/firefox/42.0/test-process/test/session")
+	testUrl, _ := url.Parse("http://example.com/wd/hub/firefox/42.0/test-process/test/session")
 	err, _, _, _, priority, _ := parsePath(testUrl)
 	AssertThat(t, err, Is{nil})
 	AssertThat(t, priority, EqualTo{1})

@@ -77,16 +77,16 @@ func redirectToBadRequest(r *http.Request, msg string) {
 }
 
 func parsePath(url *url.URL) (error, string, string, string, int, string) {
-	p := strings.Split(url.Path, slash)
-	if len(p) != 6 {
+	p := strings.Split(strings.TrimPrefix(url.Path, wdHub), slash)
+	if len(p) != 5 {
 		err := errors.New(fmt.Sprintf("invalid url [%s]: should have format /browserName/version/processName/priority/command", url))
 		return err, "", "", "", 0, ""
 	}
-	priority, err := strconv.Atoi(p[4])
+	priority, err := strconv.Atoi(p[3])
 	if err != nil {
 		priority = 1
 	}
-	return nil, p[1], p[2], p[3], priority, p[5]
+	return nil, p[0], p[1], p[2], priority, p[4]
 }
 
 func getProcess(browserState BrowserState, name string, priority int, maxConnections int) *Process {
