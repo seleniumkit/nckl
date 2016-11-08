@@ -14,8 +14,9 @@ import (
 )
 
 const (
+	wdHub             = "/wd/hub"
 	statusPath        = "/status"
-	queuePath         = "/session"
+	queuePath         = wdHub
 	badRequestPath    = "/badRequest"
 	unknownUserPath   = "/unknownUser"
 	badRequestMessage = "msg"
@@ -73,7 +74,7 @@ func queue(r *http.Request) {
 	process.capacityQueue.Push()
 	<-process.awaitQueue
 	r.URL.Host = *destination
-	r.URL.Path = fmt.Sprintf("/wd/hub/%s", command)
+	r.URL.Path = fmt.Sprintf("%s/%s", wdHub, command)
 }
 
 func parsePath(url *url.URL) (error, string, string, string, int, string) {
