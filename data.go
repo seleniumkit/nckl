@@ -33,7 +33,7 @@ type BrowserId struct {
 }
 
 func (b BrowserId) String() string {
-	return fmt.Sprintf("%s:%s", b.name, b.version)
+	return fmt.Sprintf("%s_%s", b.name, b.version)
 }
 
 type QuotaState map[BrowserId]*BrowserState
