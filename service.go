@@ -134,10 +134,11 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 		sumOfPriorities += priority
 	}
 	ret := ProcessMetrics{}
+	for processName, priority := range activeProcessesPriorities {
+		ret[processName] = round(float64(priority / sumOfPriorities * maxConnections))
+	}
 	for processName := range browserState {
-		if priority, ok := activeProcessesPriorities[processName]; ok {
-			ret[processName] = round(float64(priority / sumOfPriorities * maxConnections))
-		} else {
+		if _, ok := activeProcessesPriorities[processName]; !ok {
 			ret[processName] = 0
 		}
 	}
