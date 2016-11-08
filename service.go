@@ -46,8 +46,7 @@ func queue(r *http.Request) {
 
 	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
-		r.URL.Path = badRequestPath
-		r.URL.Query().Add(badRequestMessage, fmt.Sprintf("%v", err))
+		redirectToBadRequest(r, err.Error())
 		return
 	}
 
@@ -66,8 +65,7 @@ func queue(r *http.Request) {
 	if process.capacityQueue.Size() == 0 {
 		refreshCapacities(maxConnections, browserState)
 		if process.capacityQueue.Size() == 0 {
-			r.URL.Path = badRequestPath
-			r.URL.Query().Add(badRequestMessage, "Not enough sessions for this process. Come back later.")
+			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
 			return
 		}
 	}
@@ -75,6 +73,12 @@ func queue(r *http.Request) {
 	<-process.awaitQueue
 	r.URL.Host = *destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
+}
+
+func redirectToBadRequest(r *http.Request, msg string) {
+	r.Method = "GET"
+	r.URL.Path = badRequestPath
+	r.URL.Query().Set(badRequestMessage, msg)
 }
 
 func parsePath(url *url.URL) (error, string, string, string, int, string) {

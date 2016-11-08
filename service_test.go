@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	. "github.com/aandryashin/matchers"
 	. "github.com/aandryashin/matchers/httpresp"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -57,4 +59,13 @@ func TestParseInvalidPath(t *testing.T) {
 	testUrl, _ := url.Parse("http://example.com/invalid")
 	err, _, _, _, _, _ := parsePath(testUrl)
 	AssertThat(t, err, Is{Not{nil}})
+}
+
+func TestBadRequest(t *testing.T) {
+	badRequestUrl := fmt.Sprintf("%s?%s=%s", createUrl(badRequestPath), badRequestMessage, "test")
+	resp, err := http.Get(badRequestUrl)
+	AssertThat(t, err, Is{nil})
+	AssertThat(t, resp.StatusCode, EqualTo{http.StatusBadRequest})
+	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	AssertThat(t, bytes.ContainsAny(bodyBytes, "test"), Is{true})
 }
