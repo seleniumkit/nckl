@@ -9,6 +9,7 @@ type Queue interface {
 	Push()
 	Pop()
 	Size() int
+	Capacity() int
 	SetCapacity(newCapacity int)
 }
 
@@ -43,6 +44,10 @@ func (q *queueImpl) Size() int {
 		size += len(ch)
 	}
 	return size
+}
+
+func (q *queueImpl) Capacity() int {
+	return cap(q.channels[len(q.channels)-1])
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {

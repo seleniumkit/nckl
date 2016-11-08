@@ -57,9 +57,9 @@ func queue(r *http.Request) {
 	go func() {
 		process.awaitQueue <- struct{}{}
 	}()
-	if process.capacityQueue.Size() == 0 {
+	if process.capacityQueue.Capacity() == 0 {
 		refreshCapacities(maxConnections, browserState)
-		if process.capacityQueue.Size() == 0 {
+		if process.capacityQueue.Capacity() == 0 {
 			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
 			return
 		}

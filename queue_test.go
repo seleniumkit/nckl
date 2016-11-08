@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/aandryashin/matchers"
+	. "github.com/aandryashin/matchers"
 	"testing"
 	"time"
 )
@@ -10,28 +10,29 @@ const defaultTimeout = 100 * time.Millisecond
 
 func TestSize(t *testing.T) {
 	queue := CreateQueue(1)
-	matchers.AssertThat(t, queue.Size(), matchers.EqualTo{0})
+	AssertThat(t, queue.Size(), EqualTo{0})
 	queue.Push()
-	matchers.AssertThat(t, queue.Size(), matchers.EqualTo{1})
+	AssertThat(t, queue.Size(), EqualTo{1})
 	queue.Pop()
-	matchers.AssertThat(t, queue.Size(), matchers.EqualTo{0})
+	AssertThat(t, queue.Size(), EqualTo{0})
 }
 
 func TestSetCapacity(t *testing.T) {
 	queue := CreateQueue(1)
 	queue.Push()
 	queue.SetCapacity(2)
+	AssertThat(t, queue.Capacity(), EqualTo{2})
 	queue.Push()
 	queue.Push()
-	matchers.AssertThat(t, queue.Size(), matchers.EqualTo{3})
-	matchers.AssertThat(t, actionTimeouts(queue.Push), matchers.EqualTo{true})
+	AssertThat(t, queue.Size(), EqualTo{3})
+	AssertThat(t, actionTimeouts(queue.Push), EqualTo{true})
 }
 
 func TestPop(t *testing.T) {
 	queue := CreateQueue(2)
 	queue.Push()
-	matchers.AssertThat(t, actionTimeouts(queue.Pop), matchers.EqualTo{false})
-	matchers.AssertThat(t, actionTimeouts(queue.Pop), matchers.EqualTo{true})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
 }
 
 func actionTimeouts(action func()) bool {
