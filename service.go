@@ -2,10 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/abbot/go-http-auth"
 	"math"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -14,6 +19,7 @@ const (
 	badRequestPath    = "/badRequest"
 	unknownUserPath   = "/unknownUser"
 	badRequestMessage = "msg"
+	slash             = "/"
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -37,15 +43,13 @@ func queue(r *http.Request) {
 	}
 	quotaState := *state[quotaName]
 
-	caps, err := getCaps(r)
+	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
 		r.URL.Path = badRequestPath
-		r.URL.Query().Add(badRequestMessage, "Failed to parse capabilities JSON")
+		r.URL.Query().Add(badRequestMessage, fmt.Sprintf("%v", err))
 		return
 	}
 
-	browserName := caps.browser()
-	version := caps.version()
 	browserId := BrowserId{name: browserName, version: version}
 
 	if _, ok := quotaState[browserId]; !ok {
@@ -53,8 +57,6 @@ func queue(r *http.Request) {
 	}
 	browserState := *quotaState[browserId]
 
-	processName := caps.processName()
-	priority := caps.processPriority()
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 	go func() {
@@ -71,12 +73,20 @@ func queue(r *http.Request) {
 	process.capacityQueue.Push()
 	<-process.awaitQueue
 	r.URL.Host = *destination
+	r.URL.Path = fmt.Sprintf("/wd/hub/%s", command)
 }
 
-func getCaps(r *http.Request) (Caps, error) {
-	var c Caps
-	e := json.NewDecoder(r.Body).Decode(&c)
-	return c, e
+func parsePath(url *url.URL) (error, string, string, string, int, string) {
+	p := strings.Split(url.Path, slash)
+	if len(p) != 6 {
+		err := errors.New(fmt.Sprintf("invalid url [%s]: should have format /browserName/version/processName/priority/command", url))
+		return err, "", "", "", 0, ""
+	}
+	priority, err := strconv.Atoi(p[4])
+	if err != nil {
+		priority = 1
+	}
+	return nil, p[1], p[2], p[3], priority, p[5]
 }
 
 func getProcess(browserState BrowserState, name string, priority int, maxConnections int) *Process {
