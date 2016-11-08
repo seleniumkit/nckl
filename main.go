@@ -46,8 +46,8 @@ func refreshAllCapacities() {
 		for browserId, browserState := range *quotaState {
 			maxConnections := quota.MaxConnections(
 				quotaName,
-				browserId.name,
-				browserId.version,
+				browserId.Name,
+				browserId.Version,
 			)
 			refreshCapacities(maxConnections, *browserState)
 		}

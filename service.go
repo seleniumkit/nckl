@@ -45,7 +45,7 @@ func queue(r *http.Request) {
 		return
 	}
 
-	browserId := BrowserId{name: browserName, version: version}
+	browserId := BrowserId{Name: browserName, Version: version}
 
 	if _, ok := quotaState[browserId]; !ok {
 		quotaState[browserId] = &BrowserState{}
@@ -55,17 +55,17 @@ func queue(r *http.Request) {
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 	go func() {
-		process.awaitQueue <- struct{}{}
+		process.AwaitQueue <- struct{}{}
 	}()
-	if process.capacityQueue.Capacity() == 0 {
+	if process.CapacityQueue.Capacity() == 0 {
 		refreshCapacities(maxConnections, browserState)
-		if process.capacityQueue.Capacity() == 0 {
+		if process.CapacityQueue.Capacity() == 0 {
 			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
 			return
 		}
 	}
-	process.capacityQueue.Push()
-	<-process.awaitQueue
+	process.CapacityQueue.Push()
+	<-process.AwaitQueue
 	r.URL.Host = *destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 }
@@ -100,15 +100,15 @@ func getProcess(browserState BrowserState, name string, priority int, maxConnect
 		updateProcessCapacities(browserState, newCapacities)
 	}
 	process := browserState[name]
-	process.priority = priority
+	process.Priority = priority
 	return process
 }
 
 func createProcess(priority int, capacity int) *Process {
 	return &Process{
-		priority:      priority,
-		awaitQueue:    make(chan struct{}, 2^64-1),
-		capacityQueue: CreateQueue(capacity),
+		Priority:      priority,
+		AwaitQueue:    make(chan struct{}, 2^64-1),
+		CapacityQueue: CreateQueue(capacity),
 	}
 }
 
@@ -116,14 +116,14 @@ func getActiveProcessesPriorities(browserState BrowserState) ProcessMetrics {
 	currentPriorities := make(ProcessMetrics)
 	for name, process := range browserState {
 		if isProcessActive(process) {
-			currentPriorities[name] = process.priority
+			currentPriorities[name] = process.Priority
 		}
 	}
 	return currentPriorities
 }
 
 func isProcessActive(process *Process) bool {
-	return len(process.awaitQueue) > 0 || process.capacityQueue.Size() > 0
+	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0
 }
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
@@ -154,7 +154,7 @@ func round(num float64) int {
 func updateProcessCapacities(browserState BrowserState, newCapacities ProcessMetrics) {
 	for processName, newCapacity := range newCapacities {
 		process := browserState[processName]
-		process.capacityQueue.SetCapacity(newCapacity)
+		process.CapacityQueue.SetCapacity(newCapacity)
 	}
 }
 
@@ -173,14 +173,14 @@ func status(w http.ResponseWriter, r *http.Request) {
 			processes := make(map[string]ProcessStatus)
 			for processName, process := range *browserState {
 				processes[processName] = ProcessStatus{
-					priority:   process.priority,
-					queued:     len(process.awaitQueue),
-					processing: process.capacityQueue.Size(),
+					Priority:   process.Priority,
+					Queued:     len(process.AwaitQueue),
+					Processing: process.CapacityQueue.Size(),
 				}
 			}
 			status = append(status, BrowserStatus{
-				name:      browserId.String(),
-				processes: processes,
+				Name:      browserId.String(),
+				Processes: processes,
 			})
 		}
 	}

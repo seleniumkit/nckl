@@ -7,20 +7,20 @@ import "fmt"
 // of all queue channels should be always equal to total T specified in config.
 
 type Process struct {
-	priority      int
-	awaitQueue    chan struct{}
-	capacityQueue Queue
+	Priority      int
+	AwaitQueue    chan struct{}
+	CapacityQueue Queue
 }
 
 type BrowserStatus struct {
-	name      string                   `json:"name"`
-	processes map[string]ProcessStatus `json:"processes"`
+	Name      string                   `json:"name"`
+	Processes map[string]ProcessStatus `json:"processes"`
 }
 
 type ProcessStatus struct {
-	priority   int `json:"priority"`
-	queued     int `json:"queued"`
-	processing int `json:"processing"`
+	Priority   int `json:"priority"`
+	Queued     int `json:"queued"`
+	Processing int `json:"processing"`
 }
 
 type ProcessMetrics map[string]int
@@ -28,12 +28,12 @@ type ProcessMetrics map[string]int
 type BrowserState map[string]*Process
 
 type BrowserId struct {
-	name    string
-	version string
+	Name    string
+	Version string
 }
 
 func (b BrowserId) String() string {
-	return fmt.Sprintf("%s_%s", b.name, b.version)
+	return fmt.Sprintf("%s_%s", b.Name, b.Version)
 }
 
 type QuotaState map[BrowserId]*BrowserState
