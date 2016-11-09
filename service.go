@@ -82,7 +82,7 @@ func redirectToBadRequest(r *http.Request, msg string) {
 
 func parsePath(url *url.URL) (error, string, string, string, int, string) {
 	p := strings.Split(strings.TrimPrefix(url.Path, wdHub), slash)
-	if len(p) != 5 {
+	if len(p) < 5 {
 		err := errors.New(fmt.Sprintf("invalid url [%s]: should have format /browserName/version/processName/priority/command", url))
 		return err, "", "", "", 0, ""
 	}
@@ -90,7 +90,7 @@ func parsePath(url *url.URL) (error, string, string, string, int, string) {
 	if err != nil {
 		priority = 1
 	}
-	return nil, p[0], p[1], p[2], priority, p[4]
+	return nil, p[0], p[1], p[2], priority, strings.Join(p[4:], slash)
 }
 
 func getProcess(browserState BrowserState, name string, priority int, maxConnections int) *Process {
