@@ -45,31 +45,39 @@ func queue(r *http.Request) {
 		return
 	}
 
-	browserId := BrowserId{Name: browserName, Version: version}
+	// Only new session requests should wait in queue
+	if isNewSessionRequest(r.Method, command) {
+		browserId := BrowserId{Name: browserName, Version: version}
 
-	if _, ok := quotaState[browserId]; !ok {
-		quotaState[browserId] = &BrowserState{}
-	}
-	browserState := *quotaState[browserId]
-
-	maxConnections := quota.MaxConnections(quotaName, browserName, version)
-	process := getProcess(browserState, processName, priority, maxConnections)
-
-	if process.CapacityQueue.Capacity() == 0 {
-		refreshCapacities(maxConnections, browserState)
-		if process.CapacityQueue.Capacity() == 0 {
-			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
-			return
+		if _, ok := quotaState[browserId]; !ok {
+			quotaState[browserId] = &BrowserState{}
 		}
+		browserState := *quotaState[browserId]
+
+		maxConnections := quota.MaxConnections(quotaName, browserName, version)
+		process := getProcess(browserState, processName, priority, maxConnections)
+
+		if process.CapacityQueue.Capacity() == 0 {
+			refreshCapacities(maxConnections, browserState)
+			if process.CapacityQueue.Capacity() == 0 {
+				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
+				return
+			}
+		}
+
+		go func() {
+			process.AwaitQueue <- struct{}{}
+		}()
+		process.CapacityQueue.Push()
+		<-process.AwaitQueue
 	}
 
-	go func() {
-		process.AwaitQueue <- struct{}{}
-	}()
-	process.CapacityQueue.Push()
-	<-process.AwaitQueue
 	r.URL.Host = *destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
+}
+
+func isNewSessionRequest(httpMethod string, command string) bool {
+	return httpMethod == "POST" && command == "session"
 }
 
 func redirectToBadRequest(r *http.Request, msg string) {
