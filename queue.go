@@ -32,6 +32,10 @@ func (q *queueImpl) Push() {
 
 func (q *queueImpl) Pop() {
 	<-q.channels[0]
+	q.cleanupChannels()
+}
+
+func (q *queueImpl) cleanupChannels() {
 	if len(q.channels) > 1 && len(q.channels[0]) == 0 {
 		close(q.channels[0])
 		q.channels = q.channels[1:]
@@ -51,5 +55,8 @@ func (q *queueImpl) Capacity() int {
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {
-	q.channels = append(q.channels, make(chan struct{}, newCapacity))
+	if len(q.channels) == 0 || q.Capacity() != newCapacity {
+		q.channels = append(q.channels, make(chan struct{}, newCapacity))
+	}
+	q.cleanupChannels()
 }

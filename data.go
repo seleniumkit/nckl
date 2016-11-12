@@ -10,6 +10,7 @@ type Process struct {
 	Priority      int
 	AwaitQueue    chan struct{}
 	CapacityQueue Queue
+	LastActivity  int64 //Unix timestamp in seconds
 }
 
 type BrowserStatus struct {

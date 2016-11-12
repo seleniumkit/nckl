@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	listen           = flag.String("listen", ":8080", "Host and port to listen to")
-	destination      = flag.String("destination", ":4444", "Host and port to proxy to")
-	updateRate       = flag.Int("updateRate", 5, "Time in seconds between refreshing queue lengths")
-	quotaDir         = flag.String("quotaDirectory", "quota", "Directory to search for quota XML files")
-	usersFile        = flag.String("usersFile", "users.properties", "Path of the list of users")
+	listen           string
+	destination      string
+	updateRate       int
+	quotaDir         string
+	usersFile        string
 	state            = make(State)
 	quota            = make(Quota)
 	scheduler        chan struct{}
@@ -23,7 +23,7 @@ var (
 )
 
 func scheduleCapacitiesUpdate() chan struct{} {
-	ticker := time.NewTicker(time.Duration(*updateRate) * time.Second)
+	ticker := time.NewTicker(time.Duration(updateRate) * time.Second)
 	quit := make(chan struct{})
 	go func() {
 		for {
@@ -55,6 +55,11 @@ func refreshAllCapacities() {
 }
 
 func init() {
+	flag.StringVar(&listen, "listen", ":8080", "Host and port to listen to")
+	flag.StringVar(&destination, "destination", ":4444", "Host and port to proxy to")
+	flag.IntVar(&updateRate, "updateRate", 5, "Time in seconds between refreshing queue lengths")
+	flag.StringVar(&quotaDir, "quotaDirectory", "quota", "Directory to search for quota XML files")
+	flag.StringVar(&usersFile, "usersFile", "users.properties", "Path of the list of users")
 	flag.Parse()
 }
 
@@ -66,7 +71,7 @@ func waitForShutdown(shutdownAction func()) {
 }
 
 func main() {
-	directoryWatcher = LoadAndWatch(*quotaDir, &quota)
+	directoryWatcher = LoadAndWatch(quotaDir, &quota)
 	defer close(directoryWatcher)
 	scheduler = scheduleCapacitiesUpdate()
 	defer close(scheduler)
@@ -75,7 +80,7 @@ func main() {
 		//TODO: wait for all connections to close with timeout
 		os.Exit(0)
 	})
-	log.Println("listening on", *listen)
-	log.Println("destination host is", *destination)
-	http.ListenAndServe(*listen, mux(*usersFile))
+	log.Println("listening on", listen)
+	log.Println("destination host is", destination)
+	http.ListenAndServe(listen, mux())
 }

@@ -26,6 +26,20 @@ func TestSetCapacity(t *testing.T) {
 	queue.Push()
 	AssertThat(t, queue.Size(), EqualTo{3})
 	AssertThat(t, actionTimeouts(queue.Push), EqualTo{true})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false}) //This one is the last push data
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
+}
+
+func TestSetCapacityZeroLength(t *testing.T) {
+	queue := CreateQueue(1)
+	queue.Push()
+	queue.Pop() //There's only one channel in slice but it's already empty and should be deleted
+	queue.SetCapacity(2)
+	queue.Push()
+	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 }
 
 func TestPop(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -31,8 +32,6 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func queue(r *http.Request) {
-	r.URL.Scheme = "http"
-	r.URL.Host = *listen
 	quotaName, _, _ := r.BasicAuth()
 	if _, ok := state[quotaName]; !ok {
 		state[quotaName] = &QuotaState{}
@@ -45,26 +44,26 @@ func queue(r *http.Request) {
 		return
 	}
 
+	browserId := BrowserId{Name: browserName, Version: version}
+
+	if _, ok := quotaState[browserId]; !ok {
+		quotaState[browserId] = &BrowserState{}
+	}
+	browserState := *quotaState[browserId]
+
+	maxConnections := quota.MaxConnections(quotaName, browserName, version)
+	process := getProcess(browserState, processName, priority, maxConnections)
+
+	if process.CapacityQueue.Capacity() == 0 {
+		refreshCapacities(maxConnections, browserState)
+		if process.CapacityQueue.Capacity() == 0 {
+			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
+			return
+		}
+	}
+
 	// Only new session requests should wait in queue
 	if isNewSessionRequest(r.Method, command) {
-		browserId := BrowserId{Name: browserName, Version: version}
-
-		if _, ok := quotaState[browserId]; !ok {
-			quotaState[browserId] = &BrowserState{}
-		}
-		browserState := *quotaState[browserId]
-
-		maxConnections := quota.MaxConnections(quotaName, browserName, version)
-		process := getProcess(browserState, processName, priority, maxConnections)
-
-		if process.CapacityQueue.Capacity() == 0 {
-			refreshCapacities(maxConnections, browserState)
-			if process.CapacityQueue.Capacity() == 0 {
-				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
-				return
-			}
-		}
-
 		go func() {
 			process.AwaitQueue <- struct{}{}
 		}()
@@ -72,7 +71,13 @@ func queue(r *http.Request) {
 		<-process.AwaitQueue
 	}
 
-	r.URL.Host = *destination
+	if isDeleteSessionRequest(r.Method, command) {
+		//TODO: probably need to timeout sessions
+		process.CapacityQueue.Pop()
+	}
+
+	r.URL.Scheme = "http"
+	r.URL.Host = destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 }
 
@@ -80,7 +85,13 @@ func isNewSessionRequest(httpMethod string, command string) bool {
 	return httpMethod == "POST" && command == "session"
 }
 
+func isDeleteSessionRequest(httpMethod string, command string) bool {
+	return httpMethod == "DELETE" && command == "session"
+}
+
 func redirectToBadRequest(r *http.Request, msg string) {
+	r.URL.Scheme = "http"
+	r.URL.Host = listen
 	r.Method = "GET"
 	r.URL.Path = badRequestPath
 	values := r.URL.Query()
@@ -111,6 +122,7 @@ func getProcess(browserState BrowserState, name string, priority int, maxConnect
 	}
 	process := browserState[name]
 	process.Priority = priority
+	process.LastActivity = time.Now().Unix()
 	return process
 }
 
@@ -119,6 +131,7 @@ func createProcess(priority int, capacity int) *Process {
 		Priority:      priority,
 		AwaitQueue:    make(chan struct{}, 2^64-1),
 		CapacityQueue: CreateQueue(capacity),
+		LastActivity:  time.Now().Unix(),
 	}
 }
 
@@ -133,7 +146,8 @@ func getActiveProcessesPriorities(browserState BrowserState) ProcessMetrics {
 }
 
 func isProcessActive(process *Process) bool {
-	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0
+	lastActivitySeconds := time.Now().Unix() - process.LastActivity
+	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || lastActivitySeconds < int64(updateRate)
 }
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
@@ -143,7 +157,7 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 	}
 	ret := ProcessMetrics{}
 	for processName, priority := range activeProcessesPriorities {
-		ret[processName] = round(float64(priority / sumOfPriorities * maxConnections))
+		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections))
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
@@ -204,13 +218,13 @@ func requireBasicAuth(authenticator *auth.BasicAuth, handler func(http.ResponseW
 	})
 }
 
-func mux(usersFile string) http.Handler {
+func mux() http.Handler {
 	mux := http.NewServeMux()
-	proxyFunc := (&httputil.ReverseProxy{Director: queue}).ServeHTTP
 	authenticator := auth.NewBasicAuthenticator(
 		"Selenium Load Balancer",
 		PropertiesFileProvider(usersFile),
 	)
+	proxyFunc := (&httputil.ReverseProxy{Director: queue}).ServeHTTP
 	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, proxyFunc))
 	mux.HandleFunc(statusPath, requireBasicAuth(authenticator, status))
 	mux.HandleFunc(badRequestPath, badRequest)

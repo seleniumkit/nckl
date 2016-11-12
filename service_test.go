@@ -9,20 +9,33 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
 var (
-	srv *httptest.Server
+	srv        *httptest.Server
+	backendSrv *httptest.Server
 )
 
 const (
-	username = "selenium"
-	password = "selenium-password"
+	username = "test"
+	password = "test-password"
 )
 
 func init() {
-	srv = httptest.NewServer(mux("test-data/test-users.properties"))
+	backendSrv = createBackendSrv(http.StatusOK)
+	destination = hostFromServer(backendSrv)
+	usersFile = "test-data/test-users.properties"
+	quotaDir = "test-data"
+	srv = httptest.NewServer(mux())
+	listen = hostFromServer(srv)
+	LoadAndWatch(quotaDir, &quota)
+}
+
+func hostFromServer(srv *httptest.Server) string {
+	srvUrl, _ := url.Parse(srv.URL)
+	return srvUrl.Host
 }
 
 func TestStatus(t *testing.T) {
@@ -68,4 +81,56 @@ func TestBadRequest(t *testing.T) {
 	AssertThat(t, resp.StatusCode, EqualTo{http.StatusBadRequest})
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 	AssertThat(t, bytes.ContainsAny(bodyBytes, "test"), Is{true})
+}
+
+func TestRound(t *testing.T) {
+	AssertThat(t, round(1.51), EqualTo{2})
+	AssertThat(t, round(1.49), EqualTo{1})
+}
+
+func TestCalculateCapacities(t *testing.T) {
+	activeProcessesPriorities := make(ProcessMetrics)
+	activeProcessesPriorities["first"] = 4
+	activeProcessesPriorities["second"] = 1
+	browserState := make(BrowserState)
+	const maxConnections = 25
+	newCapacities := calculateCapacities(browserState, activeProcessesPriorities, maxConnections)
+	AssertThat(t, newCapacities["first"], EqualTo{20})
+	AssertThat(t, newCapacities["second"], EqualTo{5})
+}
+
+func TestWaitInQueue(t *testing.T) {
+	//We have 25 Firefox 33.0 according to test.xml.
+	//20 of them should be used by first process and 5 by the second (proportion is 4:1).
+	firstProcessTimeouts := 0
+	secondProcessTimeouts := 0
+	for i := 1; i <= 25; i++ {
+		if requestTimeouts("first", 4) {
+			firstProcessTimeouts++
+		}
+		if requestTimeouts("second", 1) {
+			secondProcessTimeouts++
+		}
+	}
+	AssertThat(t, firstProcessTimeouts, EqualTo{5 - 1}) //Because of capacity change there's one less request timeout
+	AssertThat(t, secondProcessTimeouts, EqualTo{20})
+}
+
+func requestTimeouts(processName string, priority int) bool {
+	return actionTimeouts(func() {
+		reqUrl := createUrl(fmt.Sprintf("/wd/hub/firefox/33.0/%s/%d/session", processName, priority))
+		http.Post(
+			reqUrl,
+			"text/plain",
+			strings.NewReader("payload"),
+		)
+	})
+}
+
+func createBackendSrv(statusCode int) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+	})
+	return httptest.NewServer(mux)
 }
