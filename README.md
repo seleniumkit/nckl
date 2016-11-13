@@ -25,6 +25,7 @@ To build Docker container make sure you have the following installed:
 
 To build container type:
 ```
+$ godep restore
 $ ./build-container.sh
 ```
 This will build an image ```nckl:latest``` that exposes running Nckl to port 8080.
