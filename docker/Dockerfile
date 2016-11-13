@@ -5,7 +5,7 @@ ENV USERS_FILE /etc/grid-router/users.properties
 ENV QUOTA_DIRECTORY /etc/grid-router/quota
 ENV DESTINATION localhost:4444
 
-CMD cd .. && go build && go test -race && cp -f ../nckl .
+CMD cd .. && go build && go test -race && cd docker && cp -f ../nckl .
 COPY nckl /usr/bin
 COPY entrypoint.sh /
 
