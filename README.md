@@ -14,7 +14,7 @@ Type ```$ nckl --help``` to see all available flags. Usually Nckl is run like th
 ```
 $ nckl -usersFile /etc/grid-router/users.properties -quotaDirectory /etc/grid-router/quota -destination example.com:4444
 ```
-In this command ```-usersFile``` contains path to plain-test users file and ```-quotaDirectory``` contains path to directory with XML quota files. See example ```users.properties``` and ```test.xml``` files in [test-data](test-data) directory.
+In this command ```-usersFile``` contains path to plain-test users file and ```-quotaDirectory``` contains path to directory with XML quota files. See example ```test-users.properties``` and ```test.xml``` files in [test-data](test-data) directory.
 
 ## Docker containers
 To build Docker container make sure you have the following installed:
