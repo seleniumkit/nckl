@@ -58,8 +58,8 @@ func init() {
 	flag.StringVar(&listen, "listen", ":8080", "Host and port to listen to")
 	flag.StringVar(&destination, "destination", ":4444", "Host and port to proxy to")
 	flag.IntVar(&updateRate, "updateRate", 5, "Time in seconds between refreshing queue lengths")
-	flag.StringVar(&quotaDir, "quotaDirectory", "quota", "Directory to search for quota XML files")
-	flag.StringVar(&usersFile, "usersFile", "users.properties", "Path of the list of users")
+	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
+	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
 	flag.Parse()
 }
 
