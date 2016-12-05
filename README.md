@@ -29,3 +29,7 @@ $ godep restore
 $ ./build-container.sh
 ```
 This will build an image ```nckl:latest``` that exposes running Nckl to port 8080.
+To run container type:
+```
+$ docker run -d --name nckl -e DESTINATION='example.com:4444' -v /etc/grid-router/:/etc/grid-router:ro --net host nckl:latest
+```
