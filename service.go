@@ -86,7 +86,9 @@ func isNewSessionRequest(httpMethod string, command string) bool {
 }
 
 func isDeleteSessionRequest(httpMethod string, command string) bool {
-	return httpMethod == "DELETE" && command == "session"
+	return httpMethod == "DELETE" &&
+		strings.HasPrefix(command, "session") &&
+		len(strings.Split(command, "/")) == 2 //Against DELETE window url
 }
 
 func redirectToBadRequest(r *http.Request, msg string) {

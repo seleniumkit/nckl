@@ -134,3 +134,13 @@ func createBackendSrv(statusCode int) *httptest.Server {
 	})
 	return httptest.NewServer(mux)
 }
+
+func TestIsDeleteSessionRequest(t *testing.T) {
+	AssertThat(t, isDeleteSessionRequest("DELETE", "session/123"), Is{true})
+	AssertThat(t, isDeleteSessionRequest("DELETE", "session/123/cookie"), Is{false})
+}
+
+func TestIsNewSessionRequest(t *testing.T) {
+	AssertThat(t, isNewSessionRequest("POST", "session"), Is{true})
+	AssertThat(t, isNewSessionRequest("POST", "session/123/timeouts"), Is{false})
+}
