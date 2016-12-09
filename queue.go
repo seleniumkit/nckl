@@ -1,5 +1,7 @@
 package main
 
+import "sync"
+
 // An extensible fixed size blocking queue based on channels.
 // Internally we store a list of channels with fixed size. When pushing an item
 // we always add to the last channel (i.e. the newest one). When popping an item
@@ -24,18 +26,27 @@ func CreateQueue(initialCapacity int) *queueImpl {
 
 type queueImpl struct {
 	channels []chan struct{}
+	lock     sync.RWMutex
 }
 
 func (q *queueImpl) Push() {
-	q.channels[len(q.channels)-1] <- struct{}{}
+	q.lock.RLock()
+	ch := q.channels[len(q.channels)-1]
+	q.lock.RUnlock()
+	ch <- struct{}{}
 }
 
 func (q *queueImpl) Pop() {
-	<-q.channels[0]
+	q.lock.RLock()
+	ch := q.channels[0]
+	q.lock.RUnlock()
+	<-ch
 	q.cleanupChannels()
 }
 
 func (q *queueImpl) cleanupChannels() {
+	q.lock.Lock()
+	defer q.lock.Unlock()
 	if len(q.channels) > 1 && len(q.channels[0]) == 0 {
 		close(q.channels[0])
 		q.channels = q.channels[1:]
@@ -43,6 +54,8 @@ func (q *queueImpl) cleanupChannels() {
 }
 
 func (q *queueImpl) Size() int {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
 	size := 0
 	for _, ch := range q.channels {
 		size += len(ch)
@@ -51,12 +64,16 @@ func (q *queueImpl) Size() int {
 }
 
 func (q *queueImpl) Capacity() int {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
 	return cap(q.channels[len(q.channels)-1])
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {
 	if len(q.channels) == 0 || q.Capacity() != newCapacity {
+		q.lock.Lock()
 		q.channels = append(q.channels, make(chan struct{}, newCapacity))
+		q.lock.Unlock()
 	}
 	q.cleanupChannels()
 }

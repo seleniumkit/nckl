@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,15 @@ const (
 	badRequestPath    = "/badRequest"
 	badRequestMessage = "msg"
 	slash             = "/"
+)
+
+type requestsSet map[uint64]struct{}
+
+var (
+	num         uint64
+	requests    requestsSet = make(requestsSet)
+	numLock     sync.Mutex
+	requestLock sync.Mutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +62,9 @@ func queue(r *http.Request) {
 	browserState := *quotaState[browserId]
 
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
+	requestLock.Lock()
 	process := getProcess(browserState, processName, priority, maxConnections)
+	requestLock.Unlock()
 
 	if process.CapacityQueue.Capacity() == 0 {
 		refreshCapacities(maxConnections, browserState)
@@ -63,22 +75,47 @@ func queue(r *http.Request) {
 	}
 
 	// Only new session requests should wait in queue
+	requestId := serial()
 	if isNewSessionRequest(r.Method, command) {
 		go func() {
 			process.AwaitQueue <- struct{}{}
 		}()
+		requestLock.Lock()
+		requests[requestId] = struct{}{}
+		requestLock.Unlock()
 		process.CapacityQueue.Push()
 		<-process.AwaitQueue
+		go func() {
+			timeout := time.Duration(sessionTimeout) * time.Second
+			time.Sleep(timeout)
+			finalizeSession(requests, requestId, process)
+		}()
 	}
 
 	if isDeleteSessionRequest(r.Method, command) {
-		//TODO: probably need to timeout sessions
-		process.CapacityQueue.Pop()
+		finalizeSession(requests, requestId, process)
 	}
 
 	r.URL.Scheme = "http"
 	r.URL.Host = destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
+}
+
+func serial() uint64 {
+	numLock.Lock()
+	defer numLock.Unlock()
+	id := num
+	num++
+	return id
+}
+
+func finalizeSession(requests requestsSet, requestId uint64, process *Process) {
+	requestLock.Lock()
+	defer requestLock.Unlock()
+	if _, ok := requests[requestId]; ok {
+		delete(requests, requestId)
+		process.CapacityQueue.Pop()
+	}
 }
 
 func isNewSessionRequest(httpMethod string, command string) bool {

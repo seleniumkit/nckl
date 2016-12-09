@@ -16,6 +16,7 @@ var (
 	updateRate       int
 	quotaDir         string
 	usersFile        string
+	sessionTimeout   int
 	state            = make(State)
 	quota            = make(Quota)
 	scheduler        chan struct{}
@@ -60,6 +61,7 @@ func init() {
 	flag.IntVar(&updateRate, "updateRate", 5, "Time in seconds between refreshing queue lengths")
 	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
 	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
+	flag.IntVar(&sessionTimeout, "timeout", 300, "Session timeout in seconds")
 	flag.Parse()
 }
 
