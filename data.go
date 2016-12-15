@@ -40,3 +40,5 @@ func (b BrowserId) String() string {
 type QuotaState map[BrowserId]*BrowserState
 
 type State map[string]*QuotaState
+
+type Sessions map[string]*Process

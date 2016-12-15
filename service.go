@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"bytes"
+	"io/ioutil"
 )
 
 const (
@@ -27,10 +29,8 @@ const (
 type requestsSet map[uint64]struct{}
 
 var (
-	num         uint64
-	requests    requestsSet = make(requestsSet)
-	numLock     sync.Mutex
-	requestLock sync.Mutex
+	sessions         = make(Sessions)
+	sessionLock sync.Mutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -42,29 +42,12 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func queue(r *http.Request) {
-	quotaName, _, _ := r.BasicAuth()
-	if _, ok := state[quotaName]; !ok {
-		state[quotaName] = &QuotaState{}
-	}
-	quotaState := *state[quotaName]
+	maxConnections, browserState, process, command, err := processAndMaxConnections(r)
 
-	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
 		redirectToBadRequest(r, err.Error())
 		return
 	}
-
-	browserId := BrowserId{Name: browserName, Version: version}
-
-	if _, ok := quotaState[browserId]; !ok {
-		quotaState[browserId] = &BrowserState{}
-	}
-	browserState := *quotaState[browserId]
-
-	maxConnections := quota.MaxConnections(quotaName, browserName, version)
-	requestLock.Lock()
-	process := getProcess(browserState, processName, priority, maxConnections)
-	requestLock.Unlock()
 
 	if process.CapacityQueue.Capacity() == 0 {
 		refreshCapacities(maxConnections, browserState)
@@ -75,25 +58,12 @@ func queue(r *http.Request) {
 	}
 
 	// Only new session requests should wait in queue
-	requestId := serial()
 	if isNewSessionRequest(r.Method, command) {
 		go func() {
 			process.AwaitQueue <- struct{}{}
 		}()
-		requestLock.Lock()
-		requests[requestId] = struct{}{}
-		requestLock.Unlock()
 		process.CapacityQueue.Push()
 		<-process.AwaitQueue
-		go func() {
-			timeout := time.Duration(sessionTimeout) * time.Second
-			time.Sleep(timeout)
-			finalizeSession(requests, requestId, process)
-		}()
-	}
-
-	if isDeleteSessionRequest(r.Method, command) {
-		finalizeSession(requests, requestId, process)
 	}
 
 	r.URL.Scheme = "http"
@@ -101,31 +71,93 @@ func queue(r *http.Request) {
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 }
 
-func serial() uint64 {
-	numLock.Lock()
-	defer numLock.Unlock()
-	id := num
-	num++
-	return id
+func processAndMaxConnections(r *http.Request) (int, BrowserState, *Process, string, error) {
+	quotaName, _, _ := r.BasicAuth()
+	if _, ok := state[quotaName]; !ok {
+		state[quotaName] = &QuotaState{}
+	}
+	quotaState := *state[quotaName]
+
+	err, browserName, version, processName, priority, command := parsePath(r.URL)
+	if err != nil {
+		return 0, nil, nil, "", err
+	}
+
+	browserId := BrowserId{Name: browserName, Version: version}
+
+	if _, ok := quotaState[browserId]; !ok {
+		quotaState[browserId] = &BrowserState{}
+	}
+	browserState := *quotaState[browserId]
+
+	maxConnections := quota.MaxConnections(quotaName, browserName, version)
+	process := getProcess(browserState, processName, priority, maxConnections)
+	
+	return maxConnections, browserState, process, command, nil
 }
 
-func finalizeSession(requests requestsSet, requestId uint64, process *Process) {
-	requestLock.Lock()
-	defer requestLock.Unlock()
-	if _, ok := requests[requestId]; ok {
-		delete(requests, requestId)
+type transport struct {
+	http.RoundTripper
+}
+
+func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := t.RoundTripper.RoundTrip(r)
+	if err != nil {
+		return nil, err
+	}
+
+	_, _, process, command, err := processAndMaxConnections(r)
+	
+	if isNewSessionRequest(r.Method, command) {
+		body, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		var reply map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&reply)
+		if (err != nil) {
+			sessionId := reply["sessionId"].(string)
+			sessionLock.Lock()
+			sessions[sessionId] = process
+			sessionLock.Unlock()
+			go func() {
+				timeout := time.Duration(sessionTimeout) * time.Second
+				time.Sleep(timeout)
+				deleteSession(sessionId)
+			}()
+			storage.OnSessionDeleted(sessionId, deleteSession)
+		}
+		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+	}
+
+	if ok, sessionId := isDeleteSessionRequest(r.Method, command); ok {
+		deleteSession(sessionId)
+	}
+	
+	return resp, nil
+}
+
+func deleteSession(sessionId string) {
+	sessionLock.Lock()
+	defer sessionLock.Unlock()
+	if process, ok := sessions[sessionId]; ok {
+		delete(sessions, sessionId)
 		process.CapacityQueue.Pop()
 	}
+	storage.DeleteSession(sessionId)
 }
 
 func isNewSessionRequest(httpMethod string, command string) bool {
 	return httpMethod == "POST" && command == "session"
 }
 
-func isDeleteSessionRequest(httpMethod string, command string) bool {
-	return httpMethod == "DELETE" &&
-		strings.HasPrefix(command, "session") &&
-		len(strings.Split(command, "/")) == 2 //Against DELETE window url
+func isDeleteSessionRequest(httpMethod string, command string) (bool, string) {
+	
+	if httpMethod == "DELETE" && strings.HasPrefix(command, "session") {
+		pieces := strings.Split(command, "/")
+		if (len(pieces) == 2) { //Against DELETE window url
+			return true, pieces[1]
+		}
+	}
+	return false, "" 
 }
 
 func redirectToBadRequest(r *http.Request, msg string) {
@@ -196,7 +228,7 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 	}
 	ret := ProcessMetrics{}
 	for processName, priority := range activeProcessesPriorities {
-		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections))
+		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections) / float64(storage.MembersCount()))
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
@@ -263,7 +295,10 @@ func mux() http.Handler {
 		"Selenium Load Balancer",
 		PropertiesFileProvider(usersFile),
 	)
-	proxyFunc := (&httputil.ReverseProxy{Director: queue}).ServeHTTP
+	proxyFunc := (&httputil.ReverseProxy{
+		Director: queue,
+		Transport: &transport{http.DefaultTransport},
+	}).ServeHTTP
 	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, proxyFunc))
 	mux.HandleFunc(statusPath, requireBasicAuth(authenticator, status))
 	mux.HandleFunc(badRequestPath, badRequest)

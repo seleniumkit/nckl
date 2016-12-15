@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"strings"
+	"github.com/coreos/etcd/client"
 )
 
 var (
@@ -17,6 +19,8 @@ var (
 	quotaDir         string
 	usersFile        string
 	sessionTimeout   int
+	endpoints	 []string
+	storage          Storage
 	state            = make(State)
 	quota            = make(Quota)
 	scheduler        chan struct{}
@@ -58,11 +62,14 @@ func refreshAllCapacities() {
 func init() {
 	flag.StringVar(&listen, "listen", ":8080", "Host and port to listen to")
 	flag.StringVar(&destination, "destination", ":4444", "Host and port to proxy to")
-	flag.IntVar(&updateRate, "updateRate", 5, "Time in seconds between refreshing queue lengths")
+	flag.IntVar(&updateRate, "updateRate", 1, "Time in seconds between refreshing queue lengths")
 	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
 	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
 	flag.IntVar(&sessionTimeout, "timeout", 300, "Session timeout in seconds")
+	var list string
+	flag.StringVar(&list, "endpoints", "http://127.0.0.1:2379", "comma-separated list of etcd endpoints")
 	flag.Parse()
+	endpoints = strings.Split(list, ",")
 }
 
 func waitForShutdown(shutdownAction func()) {
@@ -70,6 +77,19 @@ func waitForShutdown(shutdownAction func()) {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 	shutdownAction()
+}
+
+func startEtcdClient() {
+	cfg := client.Config{
+		Endpoints:               endpoints,
+		Transport:               client.DefaultTransport,
+		HeaderTimeoutPerRequest: time.Second,
+	}
+	c, err := client.New(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	storage = NewEtcdStorage(c)
 }
 
 func main() {
@@ -82,6 +102,7 @@ func main() {
 		//TODO: wait for all connections to close with timeout
 		os.Exit(0)
 	})
+	startEtcdClient()
 	log.Println("listening on", listen)
 	log.Println("destination host is", destination)
 	http.ListenAndServe(listen, mux())

@@ -23,6 +23,33 @@ const (
 	password = "test-password"
 )
 
+type MapStorage struct {
+	m map[string] []func(string)
+}
+
+func NewMapStorage() *MapStorage {
+	return &MapStorage{m: make(map[string][]func(string))}
+}
+
+func (storage *MapStorage) MembersCount() int {
+	return 1
+}
+
+func (storage *MapStorage) AddSession(id string) {
+	storage.m[id] = []func(string){}
+}
+
+func (storage *MapStorage) DeleteSession(id string) {
+	for _, fn := range storage.m[id] {
+		fn(id)
+	}
+	delete(storage.m, id)
+}
+
+func (storage *MapStorage) OnSessionDeleted(id string, fn func(string)) {
+	storage.m[id] = append(storage.m[id], fn)
+}
+
 func init() {
 	backendSrv = createBackendSrv(http.StatusOK)
 	destination = hostFromServer(backendSrv)
@@ -30,6 +57,7 @@ func init() {
 	quotaDir = "test-data"
 	srv = httptest.NewServer(mux())
 	listen = hostFromServer(srv)
+	storage = NewMapStorage()
 	LoadAndWatch(quotaDir, &quota)
 }
 
@@ -136,8 +164,11 @@ func createBackendSrv(statusCode int) *httptest.Server {
 }
 
 func TestIsDeleteSessionRequest(t *testing.T) {
-	AssertThat(t, isDeleteSessionRequest("DELETE", "session/123"), Is{true})
-	AssertThat(t, isDeleteSessionRequest("DELETE", "session/123/cookie"), Is{false})
+	state, sessionId := isDeleteSessionRequest("DELETE", "session/123")
+	AssertThat(t, state, Is{true})
+	AssertThat(t, sessionId, EqualTo{"123"})
+	state, _ = isDeleteSessionRequest("DELETE", "session/123/cookie")
+	AssertThat(t, state, Is{false})
 }
 
 func TestIsNewSessionRequest(t *testing.T) {
