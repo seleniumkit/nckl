@@ -15,6 +15,7 @@ import (
 	"time"
 	"bytes"
 	"io/ioutil"
+	"log"
 )
 
 const (
@@ -42,23 +43,25 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func queue(r *http.Request) {
-	maxConnections, browserState, process, command, err := processAndMaxConnections(r)
+	maxConnections, browserId, browserState, processName, process, command, err := processAndMaxConnections(r)
 
 	if err != nil {
+		log.Printf("Unexpected request error: %v\n", err)
 		redirectToBadRequest(r, err.Error())
 		return
 	}
 
-	if process.CapacityQueue.Capacity() == 0 {
-		refreshCapacities(maxConnections, browserState)
-		if process.CapacityQueue.Capacity() == 0 {
-			redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
-			return
-		}
-	}
-
 	// Only new session requests should wait in queue
 	if isNewSessionRequest(r.Method, command) {
+		log.Printf("Creating new [%s %s] for process %s with priority %d\n", browserId.Name, browserId.Version, processName, process.Priority)
+		if process.CapacityQueue.Capacity() == 0 {
+			refreshCapacities(maxConnections, browserState)
+			if process.CapacityQueue.Capacity() == 0 {
+				log.Printf("Not enough sessions for [%s %s] process %s\n", browserId.Name, browserId.Version, processName)
+				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
+				return
+			}
+		}
 		go func() {
 			process.AwaitQueue <- struct{}{}
 		}()
@@ -71,7 +74,7 @@ func queue(r *http.Request) {
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 }
 
-func processAndMaxConnections(r *http.Request) (int, BrowserState, *Process, string, error) {
+func processAndMaxConnections(r *http.Request) (int, BrowserId, BrowserState, string, *Process, string, error) {
 	quotaName, _, _ := r.BasicAuth()
 	if _, ok := state[quotaName]; !ok {
 		state[quotaName] = &QuotaState{}
@@ -80,7 +83,7 @@ func processAndMaxConnections(r *http.Request) (int, BrowserState, *Process, str
 
 	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
-		return 0, nil, nil, "", err
+		return 0, BrowserId{}, nil, "", nil, "", err
 	}
 
 	browserId := BrowserId{Name: browserName, Version: version}
@@ -93,7 +96,7 @@ func processAndMaxConnections(r *http.Request) (int, BrowserState, *Process, str
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 	
-	return maxConnections, browserState, process, command, nil
+	return maxConnections, browserId, browserState, processName, process, command, nil
 }
 
 type transport struct {
@@ -106,13 +109,13 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	_, _, process, command, err := processAndMaxConnections(r)
+	_, _, _, _, process, command, err := processAndMaxConnections(r)
 	
 	if isNewSessionRequest(r.Method, command) {
 		body, _ := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		var reply map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&reply)
+		err = json.Unmarshal(body, &reply)
 		if (err != nil) {
 			sessionId := reply["sessionId"].(string)
 			sessionLock.Lock()
@@ -139,6 +142,7 @@ func deleteSession(sessionId string) {
 	sessionLock.Lock()
 	defer sessionLock.Unlock()
 	if process, ok := sessions[sessionId]; ok {
+		log.Printf("Deleting session [%s]\n", sessionId)
 		delete(sessions, sessionId)
 		process.CapacityQueue.Pop()
 	}
