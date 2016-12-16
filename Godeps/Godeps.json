@@ -8,14 +8,37 @@
 			"Rev": "5eb67beb188b5076812683a96c13bef79d970fd8"
 		},
 		{
+			"ImportPath": "github.com/aandryashin/matchers/httpresp",
+			"Rev": "5eb67beb188b5076812683a96c13bef79d970fd8"
+		},
+		{
 			"ImportPath": "github.com/abbot/go-http-auth",
 			"Comment": "v0.3-14-gcb43723",
 			"Rev": "cb4372376e1e00e9f6ab9ec142e029302c9e7140"
 		},
 		{
+			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v3.1.0-rc.1-143-gd8513ad",
+			"Rev": "d8513adf1d2058047929b1ed7c038fbe023ebe3a"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
+			"Comment": "v3.1.0-rc.1-143-gd8513ad",
+			"Rev": "d8513adf1d2058047929b1ed7c038fbe023ebe3a"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/types",
+			"Comment": "v3.1.0-rc.1-143-gd8513ad",
+			"Rev": "d8513adf1d2058047929b1ed7c038fbe023ebe3a"
+		},
+		{
 			"ImportPath": "github.com/fsnotify/fsnotify",
 			"Comment": "v1.4.2-1-gbd2828f",
 			"Rev": "bd2828f9f176e52d7222e565abb2d338d3f3c103"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "9c7f9b7a2bc3a520f7c7b30b34b7f85f47fe27b6"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/bcrypt",
