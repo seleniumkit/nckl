@@ -146,8 +146,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		go func() {
 			timeout := time.Duration(sessionTimeout) * time.Second
 			time.Sleep(timeout)
-			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
-			deleteSession(sessionId)
+			deleteSessionWithTimeout(sessionId, true)
 		}()
 		storage.OnSessionDeleted(sessionId, deleteSession)
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
@@ -163,9 +162,16 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func deleteSession(sessionId string) {
+	deleteSessionWithTimeout(sessionId, false)
+}
+
+func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 	sessionLock.Lock()
 	defer sessionLock.Unlock()
 	if process, ok := sessions[sessionId]; ok {
+		if (timedOut) {
+			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
+		}
 		log.Printf("[DELETING] [%s]\n", sessionId)
 		delete(sessions, sessionId)
 		process.CapacityQueue.Pop()
