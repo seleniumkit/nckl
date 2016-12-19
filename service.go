@@ -137,17 +137,18 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
 		if (err != nil) {
-			sessionId := reply["sessionId"].(string)
-			sessionLock.Lock()
-			sessions[sessionId] = requestInfo.process
-			sessionLock.Unlock()
-			go func() {
-				timeout := time.Duration(sessionTimeout) * time.Second
-				time.Sleep(timeout)
-				deleteSession(sessionId)
-			}()
-			storage.OnSessionDeleted(sessionId, deleteSession)
+			return nil, err
 		}
+		sessionId := reply["sessionId"].(string)
+		sessionLock.Lock()
+		sessions[sessionId] = requestInfo.process
+		sessionLock.Unlock()
+		go func() {
+			timeout := time.Duration(sessionTimeout) * time.Second
+			time.Sleep(timeout)
+			deleteSession(sessionId)
+		}()
+		storage.OnSessionDeleted(sessionId, deleteSession)
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		browserId := requestInfo.browser
 		log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
@@ -179,7 +180,7 @@ func isNewSessionRequest(httpMethod string, command string) bool {
 func isDeleteSessionRequest(httpMethod string, command string) (bool, string) {
 	
 	if httpMethod == "DELETE" && strings.HasPrefix(command, "session") {
-		pieces := strings.Split(command, "/")
+		pieces := strings.Split(command, slash)
 		if (len(pieces) == 2) { //Against DELETE window url
 			return true, pieces[1]
 		}
