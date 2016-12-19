@@ -159,6 +159,7 @@ func createBackendSrv(statusCode int) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
+		w.Write([]byte(`{"state":"success", "sessionId": "123", "value": {}}`))
 	})
 	return httptest.NewServer(mux)
 }

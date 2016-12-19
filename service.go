@@ -27,7 +27,6 @@ const (
 	slash             = "/"
 )
 
-type requestsSet map[uint64]struct{}
 
 var (
 	sessions         = make(Sessions)
@@ -43,21 +42,26 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func queue(r *http.Request) {
-	maxConnections, browserId, browserState, processName, process, command, err := processAndMaxConnections(r)
+	requestInfo := getRequestInfo(r)
 
+	err := requestInfo.error
 	if err != nil {
-		log.Printf("Unexpected request error: %v\n", err)
+		log.Printf("[UNEXPECTED_ERROR] [%v]\n", err)
 		redirectToBadRequest(r, err.Error())
 		return
 	}
 
 	// Only new session requests should wait in queue
+	command := requestInfo.command
+	browserId := requestInfo.browser
+	processName := requestInfo.processName
+	process := requestInfo.process
 	if isNewSessionRequest(r.Method, command) {
-		log.Printf("Creating new [%s %s] for process %s with priority %d\n", browserId.Name, browserId.Version, processName, process.Priority)
+		log.Printf("[CREATING] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 		if process.CapacityQueue.Capacity() == 0 {
-			refreshCapacities(maxConnections, browserState)
+			refreshCapacities(requestInfo.maxConnections, requestInfo.browserState)
 			if process.CapacityQueue.Capacity() == 0 {
-				log.Printf("Not enough sessions for [%s %s] process %s\n", browserId.Name, browserId.Version, processName)
+				log.Printf("[NOT_ENOUGH_SESSIONS] [%s %s] [%s]\n", browserId.Name, browserId.Version, processName)
 				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
 				return
 			}
@@ -69,12 +73,19 @@ func queue(r *http.Request) {
 		<-process.AwaitQueue
 	}
 
-	r.URL.Scheme = "http"
-	r.URL.Host = destination
-	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 }
 
-func processAndMaxConnections(r *http.Request) (int, BrowserId, BrowserState, string, *Process, string, error) {
+type requestInfo struct {
+	maxConnections int
+	browser	BrowserId
+	browserState BrowserState
+	processName string
+	process *Process
+	command string
+	error error
+}
+
+func getRequestInfo(r *http.Request) *requestInfo {
 	quotaName, _, _ := r.BasicAuth()
 	if _, ok := state[quotaName]; !ok {
 		state[quotaName] = &QuotaState{}
@@ -83,7 +94,7 @@ func processAndMaxConnections(r *http.Request) (int, BrowserId, BrowserState, st
 
 	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
-		return 0, BrowserId{}, nil, "", nil, "", err
+		return &requestInfo{0, BrowserId{}, nil, "", nil, "", err}
 	}
 
 	browserId := BrowserId{Name: browserName, Version: version}
@@ -96,7 +107,7 @@ func processAndMaxConnections(r *http.Request) (int, BrowserId, BrowserState, st
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 	
-	return maxConnections, browserId, browserState, processName, process, command, nil
+	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, nil}
 }
 
 type transport struct {
@@ -104,12 +115,21 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	requestInfo := getRequestInfo(r)
+	if (requestInfo.error != nil) {
+		return nil, errors.New(fmt.Sprintf("[FAILED] [%v]\n", requestInfo.error))
+	}
+	command := requestInfo.command
+	
+	//Here we change request url
+	r.URL.Scheme = "http"
+	r.URL.Host = destination
+	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
+	
 	resp, err := t.RoundTripper.RoundTrip(r)
 	if err != nil {
 		return nil, err
 	}
-
-	_, _, _, _, process, command, err := processAndMaxConnections(r)
 	
 	if isNewSessionRequest(r.Method, command) {
 		body, _ := ioutil.ReadAll(resp.Body)
@@ -119,7 +139,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		if (err != nil) {
 			sessionId := reply["sessionId"].(string)
 			sessionLock.Lock()
-			sessions[sessionId] = process
+			sessions[sessionId] = requestInfo.process
 			sessionLock.Unlock()
 			go func() {
 				timeout := time.Duration(sessionTimeout) * time.Second
@@ -129,6 +149,8 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 			storage.OnSessionDeleted(sessionId, deleteSession)
 		}
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+		browserId := requestInfo.browser
+		log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 	}
 
 	if ok, sessionId := isDeleteSessionRequest(r.Method, command); ok {
@@ -142,9 +164,10 @@ func deleteSession(sessionId string) {
 	sessionLock.Lock()
 	defer sessionLock.Unlock()
 	if process, ok := sessions[sessionId]; ok {
-		log.Printf("Deleting session [%s]\n", sessionId)
+		log.Printf("[DELETING] [%s]\n", sessionId)
 		delete(sessions, sessionId)
 		process.CapacityQueue.Pop()
+		log.Printf("[DELETED] [%s]\n", sessionId)
 	}
 	storage.DeleteSession(sessionId)
 }
