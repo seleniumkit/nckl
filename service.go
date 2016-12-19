@@ -146,6 +146,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		go func() {
 			timeout := time.Duration(sessionTimeout) * time.Second
 			time.Sleep(timeout)
+			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 			deleteSession(sessionId)
 		}()
 		storage.OnSessionDeleted(sessionId, deleteSession)
