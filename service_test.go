@@ -50,6 +50,9 @@ func (storage *MapStorage) OnSessionDeleted(id string, fn func(string)) {
 	storage.m[id] = append(storage.m[id], fn)
 }
 
+func (storage *MapStorage) Close() {
+}
+
 func init() {
 	backendSrv = createBackendSrv(http.StatusOK)
 	destination = hostFromServer(backendSrv)

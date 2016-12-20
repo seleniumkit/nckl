@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 	"strings"
-	"github.com/coreos/etcd/client"
+	client "github.com/coreos/etcd/clientv3"
 )
 
 var (
@@ -82,8 +82,7 @@ func waitForShutdown(shutdownAction func()) {
 func startEtcdClient() {
 	cfg := client.Config{
 		Endpoints:               endpoints,
-		Transport:               client.DefaultTransport,
-		HeaderTimeoutPerRequest: time.Second,
+		DialTimeout: 5 * time.Second,
 	}
 	c, err := client.New(cfg)
 	if err != nil {
@@ -106,4 +105,5 @@ func main() {
 	log.Println("listening on", listen)
 	log.Println("destination host is", destination)
 	http.ListenAndServe(listen, mux())
+	storage.Close()
 }

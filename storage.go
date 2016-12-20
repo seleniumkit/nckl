@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/coreos/etcd/client"
+	client "github.com/coreos/etcd/clientv3"
 	"context"
-	"time"
+	"github.com/coreos/etcd/mvcc/mvccpb"
+	"github.com/prometheus/common/log"
 )
 
 type Storage interface {
@@ -11,45 +12,55 @@ type Storage interface {
 	DeleteSession(id string)
 	OnSessionDeleted(id string, fn func(string))
 	MembersCount() int
+	Close()
 }
 
 type EtcdStorage struct {
 	ctx context.Context
-	keys client.KeysAPI
-	members client.MembersAPI
+	c    *client.Client
 }
 
-func NewEtcdStorage(c client.Client) *EtcdStorage {
-	return &EtcdStorage{context.Background(), client.NewKeysAPI(c), client.NewMembersAPI(c)}
+func NewEtcdStorage(c *client.Client) *EtcdStorage {
+	return &EtcdStorage{context.Background(), c}
 }
 
 func (storage *EtcdStorage) MembersCount() int {
-	members, err := storage.members.List(storage.ctx)
+	members, err := storage.c.Cluster.MemberList(storage.ctx)
 	if (err != nil) {
 		return 1
 	}
-	return len(members)
+	return len(members.Members)
 }
 
 func (storage *EtcdStorage) AddSession(id string) {
-	storage.keys.Set(storage.ctx, id, "", &client.SetOptions{TTL: time.Duration(sessionTimeout) * time.Second})
+	lease, err := storage.c.Grant(storage.ctx, int64(sessionTimeout))
+	if (err != nil) {
+		log.Fatal(err)
+	}
+	_, err = storage.c.Put(storage.ctx, id, "", client.WithLease(lease.ID))
+	if (err != nil) {
+		log.Fatal(err)
+	}
 }
 
 func (storage *EtcdStorage) DeleteSession(id string) {
-	storage.keys.Delete(storage.ctx, id, nil)
+	storage.c.Delete(storage.ctx, id)
 }
 
 func (storage *EtcdStorage) OnSessionDeleted(id string, fn func(string)) {
-	watcher := storage.keys.Watcher(id, nil)
+	responseChannel := storage.c.Watch(context.Background(), id)
 	go func() {
-		for {
-			response, err := watcher.Next(storage.ctx)
-			if (err != nil) {
-				break
-			} else if (response.Action == "delete") {
-				fn(id)
-				break
+		loop: for response := range responseChannel {
+			for _, ev := range response.Events {
+				if (ev.Type == mvccpb.DELETE) {
+					fn(id)
+					break loop
+				}
 			}
 		}
 	}()
+}
+
+func (storage *EtcdStorage) Close() {
+	storage.c.Close()
 }
