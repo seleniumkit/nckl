@@ -5,6 +5,7 @@ ENV PORT 8080
 ENV USERS_FILE /etc/grid-router/users.properties
 ENV QUOTA_DIRECTORY /etc/grid-router/quota
 ENV DESTINATION localhost:4444
+ENV ENDPOINTS http://127.0.0.1:2379
 
 COPY nckl /usr/bin
 COPY entrypoint.sh /
