@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/coreos/etcd/client"
 	"context"
+	"time"
 )
 
 type Storage interface {
@@ -31,7 +32,7 @@ func (storage *EtcdStorage) MembersCount() int {
 }
 
 func (storage *EtcdStorage) AddSession(id string) {
-	storage.keys.Create(storage.ctx, id, "")
+	storage.keys.Set(storage.ctx, id, "", &client.SetOptions{TTL: time.Duration(sessionTimeout) * time.Second})
 }
 
 func (storage *EtcdStorage) DeleteSession(id string) {
