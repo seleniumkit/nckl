@@ -48,7 +48,7 @@ func (storage *EtcdStorage) DeleteSession(id string) {
 }
 
 func (storage *EtcdStorage) OnSessionDeleted(id string, fn func(string)) {
-	responseChannel := storage.c.Watch(context.Background(), id)
+	responseChannel := storage.c.Watch(storage.ctx, id)
 	go func() {
 		loop: for response := range responseChannel {
 			for _, ev := range response.Events {

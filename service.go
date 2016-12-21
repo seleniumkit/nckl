@@ -142,6 +142,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		sessionId := reply["sessionId"].(string)
 		sessionLock.Lock()
 		sessions[sessionId] = requestInfo.process
+		storage.AddSession(sessionId)
 		sessionLock.Unlock()
 		go func() {
 			timeout := time.Duration(sessionTimeout) * time.Second
