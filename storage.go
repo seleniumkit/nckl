@@ -4,7 +4,7 @@ import (
 	client "github.com/coreos/etcd/clientv3"
 	"context"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/prometheus/common/log"
+	"log"
 )
 
 type Storage interface {
