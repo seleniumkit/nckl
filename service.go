@@ -236,7 +236,7 @@ func getProcess(browserState BrowserState, name string, priority int, maxConnect
 func createProcess(priority int, capacity int) *Process {
 	return &Process{
 		Priority:      priority,
-		AwaitQueue:    make(chan struct{}, 2^64-1),
+		AwaitQueue:    make(chan struct{}, math.MaxUint32),
 		CapacityQueue: CreateQueue(capacity),
 		LastActivity:  time.Now().Unix(),
 	}
