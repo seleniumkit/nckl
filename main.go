@@ -79,7 +79,7 @@ func waitForShutdown(shutdownAction func()) {
 	shutdownAction()
 }
 
-func createStorage() *Storage {
+func createStorage() Storage {
 	cfg := client.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
