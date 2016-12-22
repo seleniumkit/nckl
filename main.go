@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
+	client "github.com/coreos/etcd/clientv3"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
-	"strings"
-	client "github.com/coreos/etcd/clientv3"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 	quotaDir         string
 	usersFile        string
 	sessionTimeout   int
-	endpoints	 []string
+	endpoints        []string
 	storage          Storage
 	state            = make(State)
 	quota            = make(Quota)
@@ -79,16 +79,17 @@ func waitForShutdown(shutdownAction func()) {
 	shutdownAction()
 }
 
-func startEtcdClient() {
+func createStorage() *Storage {
 	cfg := client.Config{
-		Endpoints:               endpoints,
+		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
 	}
 	c, err := client.New(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	storage = NewEtcdStorage(c)
+	log.Printf("Connected to storage with endpoints: %s\n", endpoints)
+	return NewEtcdStorage(c)
 }
 
 func main() {
@@ -96,14 +97,14 @@ func main() {
 	defer close(directoryWatcher)
 	scheduler = scheduleCapacitiesUpdate()
 	defer close(scheduler)
+	storage = createStorage()
+	defer storage.Close()
 	go waitForShutdown(func() {
 		log.Println("shutting down server")
 		//TODO: wait for all connections to close with timeout
 		os.Exit(0)
 	})
-	startEtcdClient()
 	log.Println("listening on", listen)
 	log.Println("destination host is", destination)
 	http.ListenAndServe(listen, mux())
-	storage.Close()
 }
