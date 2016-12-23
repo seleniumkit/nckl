@@ -105,6 +105,7 @@ func loadFile(file string, quota *Quota) {
 	browsers, err := fileToBrowsers(file)
 	if err != nil {
 		log.Printf("%v\n", err)
+		return
 	}
 	fileName := filepath.Base(file)
 	// Just file name without extension
