@@ -116,10 +116,13 @@ type transport struct {
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	requestInfo := getRequestInfo(r)
+	command := requestInfo.command
+	isNewSessionRequest := isNewSessionRequest(r.Method, command)
+	
 	if (requestInfo.error != nil) {
+		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, errors.New(fmt.Sprintf("[FAILED] [%v]\n", requestInfo.error))
 	}
-	command := requestInfo.command
 	
 	//Here we change request url
 	r.URL.Scheme = "http"
@@ -128,22 +131,24 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	
 	resp, err := t.RoundTripper.RoundTrip(r)
 	if err != nil {
+		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, err
 	}
 	
-	if isNewSessionRequest(r.Method, command) {
+	if isNewSessionRequest {
 		body, _ := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
 		if (err != nil) {
+			cleanupQueue(isNewSessionRequest, requestInfo)
 			return nil, err
 		}
 		sessionId := reply["sessionId"].(string)
 		sessionLock.Lock()
 		sessions[sessionId] = requestInfo.process
-		storage.AddSession(sessionId)
 		sessionLock.Unlock()
+		storage.AddSession(sessionId)
 		go func() {
 			timeout := time.Duration(sessionTimeout) * time.Second
 			time.Sleep(timeout)
@@ -162,19 +167,25 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
+	if (isNewSessionRequest) {
+		requestInfo.process.CapacityQueue.Pop()
+	}
+}
+
 func deleteSession(sessionId string) {
 	deleteSessionWithTimeout(sessionId, false)
 }
 
 func deleteSessionWithTimeout(sessionId string, timedOut bool) {
-	sessionLock.Lock()
-	defer sessionLock.Unlock()
 	if process, ok := sessions[sessionId]; ok {
 		if (timedOut) {
 			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 		}
 		log.Printf("[DELETING] [%s]\n", sessionId)
+		sessionLock.Lock()
 		delete(sessions, sessionId)
+		sessionLock.Unlock()
 		process.CapacityQueue.Pop()
 		log.Printf("[DELETED] [%s]\n", sessionId)
 	}
