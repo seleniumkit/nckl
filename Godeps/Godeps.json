@@ -18,8 +18,8 @@
 		},
 		{
 			"ImportPath": "github.com/abbot/go-http-auth",
-			"Comment": "v0.3-14-gcb43723",
-			"Rev": "cb4372376e1e00e9f6ab9ec142e029302c9e7140"
+			"Comment": "v0.3-16-gd45c47b",
+			"Rev": "d45c47bedec736d172957bd394786b76626fa8ac"
 		},
 		{
 			"ImportPath": "github.com/beorn7/perks/quantile",
