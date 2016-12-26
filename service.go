@@ -30,7 +30,7 @@ const (
 
 var (
 	sessions         = make(Sessions)
-	sessionLock sync.Mutex
+	sessionLock sync.RWMutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +178,10 @@ func deleteSession(sessionId string) {
 }
 
 func deleteSessionWithTimeout(sessionId string, timedOut bool) {
-	if process, ok := sessions[sessionId]; ok {
+	sessionLock.RLock()
+	process, ok := sessions[sessionId]
+	sessionLock.RUnlock()
+	if ok {
 		if (timedOut) {
 			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 		}
