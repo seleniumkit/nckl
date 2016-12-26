@@ -22,6 +22,7 @@ type ProcessStatus struct {
 	Priority   int `json:"priority"`
 	Queued     int `json:"queued"`
 	Processing int `json:"processing"`
+	Max        int `json:"max"`
 }
 
 type ProcessMetrics map[string]int

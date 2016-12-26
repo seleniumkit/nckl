@@ -24,7 +24,7 @@ const (
 )
 
 type MapStorage struct {
-	m map[string] []func(string)
+	m map[string][]func(string)
 }
 
 func NewMapStorage() *MapStorage {

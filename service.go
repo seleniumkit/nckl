@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/abbot/go-http-auth"
+	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"net/http/httputil"
@@ -13,9 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"bytes"
-	"io/ioutil"
-	"log"
 )
 
 const (
@@ -27,9 +27,8 @@ const (
 	slash             = "/"
 )
 
-
 var (
-	sessions         = make(Sessions)
+	sessions    = make(Sessions)
 	sessionLock sync.RWMutex
 )
 
@@ -77,12 +76,12 @@ func queue(r *http.Request) {
 
 type requestInfo struct {
 	maxConnections int
-	browser	BrowserId
-	browserState BrowserState
-	processName string
-	process *Process
-	command string
-	error error
+	browser        BrowserId
+	browserState   BrowserState
+	processName    string
+	process        *Process
+	command        string
+	error          error
 }
 
 func getRequestInfo(r *http.Request) *requestInfo {
@@ -106,7 +105,7 @@ func getRequestInfo(r *http.Request) *requestInfo {
 
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
-	
+
 	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, nil}
 }
 
@@ -118,29 +117,29 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
-	
-	if (requestInfo.error != nil) {
+
+	if requestInfo.error != nil {
 		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, errors.New(fmt.Sprintf("[FAILED] [%v]\n", requestInfo.error))
 	}
-	
+
 	//Here we change request url
 	r.URL.Scheme = "http"
 	r.URL.Host = destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
-	
+
 	resp, err := t.RoundTripper.RoundTrip(r)
 	if err != nil {
 		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, err
 	}
-	
+
 	if isNewSessionRequest {
 		body, _ := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
-		if (err != nil) {
+		if err != nil {
 			cleanupQueue(isNewSessionRequest, requestInfo)
 			return nil, err
 		}
@@ -163,12 +162,12 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if ok, sessionId := isDeleteSessionRequest(r.Method, command); ok {
 		deleteSession(sessionId)
 	}
-	
+
 	return resp, nil
 }
 
 func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
-	if (isNewSessionRequest) {
+	if isNewSessionRequest {
 		requestInfo.process.CapacityQueue.Pop()
 	}
 }
@@ -182,7 +181,7 @@ func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 	process, ok := sessions[sessionId]
 	sessionLock.RUnlock()
 	if ok {
-		if (timedOut) {
+		if timedOut {
 			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 		}
 		log.Printf("[DELETING] [%s]\n", sessionId)
@@ -200,14 +199,14 @@ func isNewSessionRequest(httpMethod string, command string) bool {
 }
 
 func isDeleteSessionRequest(httpMethod string, command string) (bool, string) {
-	
+
 	if httpMethod == "DELETE" && strings.HasPrefix(command, "session") {
 		pieces := strings.Split(command, slash)
-		if (len(pieces) == 2) { //Against DELETE window url
+		if len(pieces) == 2 { //Against DELETE window url
 			return true, pieces[1]
 		}
 	}
-	return false, "" 
+	return false, ""
 }
 
 func redirectToBadRequest(r *http.Request, msg string) {
@@ -322,6 +321,7 @@ func status(w http.ResponseWriter, r *http.Request) {
 					Priority:   process.Priority,
 					Queued:     len(process.AwaitQueue),
 					Processing: process.CapacityQueue.Size(),
+					Max:        quota.MaxConnections(quotaName, browserId.Name, browserId.Version),
 				}
 			}
 			status = append(status, BrowserStatus{
@@ -346,7 +346,7 @@ func mux() http.Handler {
 		PropertiesFileProvider(usersFile),
 	)
 	proxyFunc := (&httputil.ReverseProxy{
-		Director: queue,
+		Director:  queue,
 		Transport: &transport{http.DefaultTransport},
 	}).ServeHTTP
 	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, proxyFunc))
