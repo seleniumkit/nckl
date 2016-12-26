@@ -321,7 +321,7 @@ func status(w http.ResponseWriter, r *http.Request) {
 					Priority:   process.Priority,
 					Queued:     len(process.AwaitQueue),
 					Processing: process.CapacityQueue.Size(),
-					Max:        quota.MaxConnections(quotaName, browserId.Name, browserId.Version),
+					Max:        process.CapacityQueue.Capacity(),
 				}
 			}
 			status = append(status, BrowserStatus{
