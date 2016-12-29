@@ -343,7 +343,7 @@ func mux() http.Handler {
 	mux := http.NewServeMux()
 	authenticator := auth.NewBasicAuthenticator(
 		"Selenium Load Balancer",
-		PropertiesFileProvider(usersFile),
+		auth.HtpasswdFileProvider(usersFile),
 	)
 	proxyFunc := (&httputil.ReverseProxy{
 		Director:  queue,
