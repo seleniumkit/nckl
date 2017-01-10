@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"context"
 )
 
 const (
@@ -42,6 +43,9 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 
 func queue(r *http.Request) {
 	requestInfo := getRequestInfo(r)
+
+	ctx, _ := context.WithTimeout(r.Context(), sessionTimeout)
+	r = r.WithContext(ctx)
 
 	err := requestInfo.error
 	if err != nil {
@@ -116,6 +120,7 @@ type transport struct {
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
+	browserId := requestInfo.browser
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
 
 	if requestInfo.error != nil {
@@ -129,14 +134,23 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 
 	resp, err := t.RoundTripper.RoundTrip(r)
+	select {
+	case <-r.Context().Done():
+		log.Printf("[CLIENT_DISCONNECTED]  [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+		cleanupQueue(isNewSessionRequest, requestInfo)
+		return
+	default:
+	}
 	if err != nil {
 		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, err
 	}
+	if (resp != nil) {
+		defer resp.Body.Close()
+	}
 
 	if isNewSessionRequest {
 		body, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
 		if err != nil {
@@ -149,13 +163,11 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		sessionLock.Unlock()
 		storage.AddSession(sessionId)
 		go func() {
-			timeout := time.Duration(sessionTimeout) * time.Second
-			time.Sleep(timeout)
+			time.Sleep(sessionTimeout)
 			deleteSessionWithTimeout(sessionId, true)
 		}()
 		storage.OnSessionDeleted(sessionId, deleteSession)
 		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-		browserId := requestInfo.browser
 		log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 	}
 
@@ -339,6 +351,21 @@ func requireBasicAuth(authenticator *auth.BasicAuth, handler func(http.ResponseW
 	})
 }
 
+func withCloseNotifier(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		go func() {
+			handler(w, r.WithContext(ctx))
+			cancel()
+		}()
+		select {
+		case <-w.(http.CloseNotifier).CloseNotify():
+			cancel()
+		case <-ctx.Done():
+		}
+	}
+}
+
 func mux() http.Handler {
 	mux := http.NewServeMux()
 	authenticator := auth.NewBasicAuthenticator(
@@ -349,7 +376,7 @@ func mux() http.Handler {
 		Director:  queue,
 		Transport: &transport{http.DefaultTransport},
 	}).ServeHTTP
-	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, proxyFunc))
+	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, withCloseNotifier(proxyFunc)))
 	mux.HandleFunc(statusPath, requireBasicAuth(authenticator, status))
 	mux.HandleFunc(badRequestPath, badRequest)
 	return mux

@@ -18,7 +18,7 @@ var (
 	updateRate       int
 	quotaDir         string
 	usersFile        string
-	sessionTimeout   int
+	sessionTimeout   time.Duration
 	endpoints        []string
 	storage          Storage
 	state            = make(State)
@@ -65,7 +65,7 @@ func init() {
 	flag.IntVar(&updateRate, "updateRate", 1, "Time in seconds between refreshing queue lengths")
 	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
 	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
-	flag.IntVar(&sessionTimeout, "timeout", 300, "Session timeout in seconds")
+	flag.DurationVar(&sessionTimeout, "timeout", 300 * time.Second, "Session timeout like 3s or 500ms")
 	var list string
 	flag.StringVar(&list, "endpoints", "http://127.0.0.1:2379", "comma-separated list of etcd endpoints")
 	flag.Parse()
