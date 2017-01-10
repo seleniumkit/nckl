@@ -56,7 +56,7 @@ func (storage *MapStorage) Close() {
 func init() {
 	backendSrv = createBackendSrv(http.StatusOK)
 	destination = hostFromServer(backendSrv)
-	usersFile = "test-data/test-users.properties"
+	usersFile = "test-data/test-users.htpasswd"
 	quotaDir = "test-data"
 	srv = httptest.NewServer(mux())
 	listen = hostFromServer(srv)
