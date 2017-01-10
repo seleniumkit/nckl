@@ -138,7 +138,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	case <-r.Context().Done():
 		log.Printf("[CLIENT_DISCONNECTED]  [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 		cleanupQueue(isNewSessionRequest, requestInfo)
-		return
+		return nil, errors.New("Client disconnected")
 	default:
 	}
 	if err != nil {
