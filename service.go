@@ -145,12 +145,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, err
 	}
-	if (resp != nil) {
-		defer resp.Body.Close()
-	}
 
 	if isNewSessionRequest && resp.StatusCode == http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
 		if err != nil {
