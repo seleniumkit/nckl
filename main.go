@@ -15,7 +15,7 @@ import (
 var (
 	listen           string
 	destination      string
-	updateRate       int
+	updateRate       time.Duration
 	quotaDir         string
 	usersFile        string
 	sessionTimeout   time.Duration
@@ -28,7 +28,7 @@ var (
 )
 
 func scheduleCapacitiesUpdate() chan struct{} {
-	ticker := time.NewTicker(time.Duration(updateRate) * time.Second)
+	ticker := time.NewTicker(updateRate)
 	quit := make(chan struct{})
 	go func() {
 		for {
@@ -62,7 +62,7 @@ func refreshAllCapacities() {
 func init() {
 	flag.StringVar(&listen, "listen", ":8080", "Host and port to listen to")
 	flag.StringVar(&destination, "destination", ":4444", "Host and port to proxy to")
-	flag.IntVar(&updateRate, "updateRate", 1, "Time in seconds between refreshing queue lengths")
+	flag.DurationVar(&updateRate, "updateRate", 1 * time.Second, "Time between refreshing queue lengths like 1s or 500ms")
 	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
 	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
 	flag.DurationVar(&sessionTimeout, "timeout", 300 * time.Second, "Session timeout like 3s or 500ms")
