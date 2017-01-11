@@ -31,6 +31,7 @@ const (
 var (
 	sessions    = make(Sessions)
 	sessionLock sync.RWMutex
+	stateLock   sync.Mutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +91,8 @@ type requestInfo struct {
 
 func getRequestInfo(r *http.Request) *requestInfo {
 	quotaName, _, _ := r.BasicAuth()
+	stateLock.Lock()
+	defer stateLock.Unlock()
 	if _, ok := state[quotaName]; !ok {
 		state[quotaName] = &QuotaState{}
 	}

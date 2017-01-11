@@ -82,7 +82,7 @@ func waitForShutdown(shutdownAction func()) {
 func createStorage() Storage {
 	cfg := client.Config{
 		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
+		DialTimeout: 10 * time.Second,
 	}
 	c, err := client.New(cfg)
 	if err != nil {

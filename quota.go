@@ -45,7 +45,7 @@ type Host struct {
 type Quota map[string]int
 
 var (
-	quotaLock sync.Mutex
+	quotaLock sync.RWMutex
 )
 
 func LoadAndWatch(quotaDir string, quota *Quota) chan struct{} {
@@ -144,6 +144,8 @@ func browsersToQuota(quota Quota, quotaName string, browsers Browsers) {
 
 func (quota Quota) MaxConnections(quotaName string, browserName string, version string) int {
 	key := getKey(quotaName, browserName, version)
+	quotaLock.RLock()
+	defer quotaLock.RUnlock()
 	if total, ok := quota[key]; ok {
 		return total
 	}
