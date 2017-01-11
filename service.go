@@ -149,7 +149,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		defer resp.Body.Close()
 	}
 
-	if isNewSessionRequest {
+	if isNewSessionRequest && resp.StatusCode == http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		var reply map[string]interface{}
 		err = json.Unmarshal(body, &reply)
@@ -157,18 +157,24 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 			cleanupQueue(isNewSessionRequest, requestInfo)
 			return nil, err
 		}
-		sessionId := reply["sessionId"].(string)
-		sessionLock.Lock()
-		sessions[sessionId] = requestInfo.process
-		sessionLock.Unlock()
-		storage.AddSession(sessionId)
-		go func() {
-			time.Sleep(sessionTimeout)
-			deleteSessionWithTimeout(sessionId, true)
-		}()
-		storage.OnSessionDeleted(sessionId, deleteSession)
-		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-		log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+		rawSessionId := reply["sessionId"]
+		switch rawSessionId.(type){
+		case string: {
+			sessionId := rawSessionId.(string)
+	
+			sessionLock.Lock()
+			sessions[sessionId] = requestInfo.process
+			sessionLock.Unlock()
+			storage.AddSession(sessionId)
+			go func() {
+				time.Sleep(sessionTimeout)
+				deleteSessionWithTimeout(sessionId, true)
+			}()
+			storage.OnSessionDeleted(sessionId, deleteSession)
+			resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+			log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+		}
+		}
 	}
 
 	if ok, sessionId := isDeleteSessionRequest(r.Method, command); ok {
