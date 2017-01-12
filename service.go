@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"context"
 )
 
 const (
@@ -129,6 +129,8 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if requestInfo.error != nil {
 		cleanupQueue(isNewSessionRequest, requestInfo)
 		return nil, errors.New(fmt.Sprintf("[FAILED] [%v]\n", requestInfo.error))
+		//TODO: get the following errors:
+		//2017/01/11 12:41:21 http: proxy error: [FAILED] [invalid url [http://:80/badRequest?msg=Not+enough+sessions+for+this+process.+Come+back+later.]: should have format /browserName/version/processName/priority/command]
 	}
 
 	//Here we change request url
@@ -149,33 +151,39 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	if isNewSessionRequest && resp.StatusCode == http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-		var reply map[string]interface{}
-		err = json.Unmarshal(body, &reply)
-		if err != nil {
-			cleanupQueue(isNewSessionRequest, requestInfo)
-			return nil, err
-		}
-		rawSessionId := reply["sessionId"]
-		switch rawSessionId.(type){
-		case string: {
-			sessionId := rawSessionId.(string)
+	if isNewSessionRequest {
+		if resp.StatusCode == http.StatusOK {
+			
+			body, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			var reply map[string]interface{}
+			err = json.Unmarshal(body, &reply)
+			if err != nil {
+				cleanupQueue(isNewSessionRequest, requestInfo)
+				return nil, err
+			}
+			rawSessionId := reply["sessionId"]
+			switch rawSessionId.(type) {
+			case string:
+				{
+					sessionId := rawSessionId.(string)
 	
-			sessionLock.Lock()
-			sessions[sessionId] = requestInfo.process
-			sessionLock.Unlock()
-			storage.AddSession(sessionId)
-			go func() {
-				time.Sleep(sessionTimeout)
-				deleteSessionWithTimeout(sessionId, true)
-			}()
-			storage.OnSessionDeleted(sessionId, deleteSession)
-			resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-			log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+					sessionLock.Lock()
+					sessions[sessionId] = requestInfo.process
+					sessionLock.Unlock()
+					storage.AddSession(sessionId)
+					go func() {
+						time.Sleep(sessionTimeout)
+						deleteSessionWithTimeout(sessionId, true)
+					}()
+					storage.OnSessionDeleted(sessionId, deleteSession)
+					resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+					log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+					return resp, nil
+				}
+			}
 		}
-		}
+		cleanupQueue(isNewSessionRequest, requestInfo)
 	}
 
 	if ok, sessionId := isDeleteSessionRequest(r.Method, command); ok {
@@ -261,7 +269,7 @@ func getProcess(browserState BrowserState, name string, priority int, maxConnect
 	}
 	process := browserState[name]
 	process.Priority = priority
-	process.LastActivity = time.Now().Unix()
+	process.LastActivity = time.Now()
 	return process
 }
 
@@ -270,7 +278,7 @@ func createProcess(priority int, capacity int) *Process {
 		Priority:      priority,
 		AwaitQueue:    make(chan struct{}, math.MaxUint32),
 		CapacityQueue: CreateQueue(capacity),
-		LastActivity:  time.Now().Unix(),
+		LastActivity:  time.Now(),
 	}
 }
 
@@ -285,8 +293,8 @@ func getActiveProcessesPriorities(browserState BrowserState) ProcessMetrics {
 }
 
 func isProcessActive(process *Process) bool {
-	lastActivitySeconds := time.Now().Unix() - process.LastActivity
-	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || lastActivitySeconds < int64(updateRate)
+	lastActivitySeconds := time.Now().Sub(process.LastActivity).Nanoseconds()
+	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || lastActivitySeconds < 5*updateRate.Nanoseconds()
 }
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
@@ -337,10 +345,11 @@ func status(w http.ResponseWriter, r *http.Request) {
 			processes := make(map[string]ProcessStatus)
 			for processName, process := range *browserState {
 				processes[processName] = ProcessStatus{
-					Priority:   process.Priority,
-					Queued:     len(process.AwaitQueue),
-					Processing: process.CapacityQueue.Size(),
-					Max:        process.CapacityQueue.Capacity(),
+					Priority:     process.Priority,
+					Queued:       len(process.AwaitQueue),
+					Processing:   process.CapacityQueue.Size(),
+					Max:          process.CapacityQueue.Capacity(),
+					LastActivity: process.LastActivity.Format(time.UnixDate),
 				}
 			}
 			status = append(status, BrowserStatus{

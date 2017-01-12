@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // This one should create independent channels for each user and priority and
 // manage their buffer sizes dynamically updating them every N seconds. Sum
@@ -10,7 +13,7 @@ type Process struct {
 	Priority      int
 	AwaitQueue    chan struct{}
 	CapacityQueue Queue
-	LastActivity  int64 //Unix timestamp in seconds
+	LastActivity  time.Time
 }
 
 type BrowserStatus struct {
@@ -19,10 +22,11 @@ type BrowserStatus struct {
 }
 
 type ProcessStatus struct {
-	Priority   int `json:"priority"`
-	Queued     int `json:"queued"`
-	Processing int `json:"processing"`
-	Max        int `json:"max"`
+	Priority     int    `json:"priority"`
+	Queued       int    `json:"queued"`
+	Processing   int    `json:"processing"`
+	Max          int    `json:"max"`
+	LastActivity string `json:"lastActivity"`
 }
 
 type ProcessMetrics map[string]int

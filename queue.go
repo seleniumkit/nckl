@@ -70,6 +70,7 @@ func (q *queueImpl) Capacity() int {
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {
+	//TODO: we often set 0 and then positive number. This is why a lot of channels exist and effective queue size can be many times greater than its desired capacity 
 	if len(q.channels) == 0 || q.Capacity() != newCapacity {
 		q.lock.Lock()
 		q.channels = append(q.channels, make(chan struct{}, newCapacity))
