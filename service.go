@@ -50,7 +50,7 @@ func queue(r *http.Request) {
 
 	err := requestInfo.error
 	if err != nil {
-		log.Printf("[UNEXPECTED_ERROR] [%v]\n", err)
+		log.Printf("[REQUEST_ERROR] [%v]\n", err)
 		redirectToBadRequest(r, err.Error())
 		return
 	}
@@ -121,6 +121,11 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	
+	if (r.URL.Path == badRequestPath) {
+		return t.RoundTripper.RoundTrip(r)
+	}
+	
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
 	browserId := requestInfo.browser
@@ -128,9 +133,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	if requestInfo.error != nil {
 		cleanupQueue(isNewSessionRequest, requestInfo)
-		return nil, errors.New(fmt.Sprintf("[FAILED] [%v]\n", requestInfo.error))
-		//TODO: get the following errors:
-		//2017/01/11 12:41:21 http: proxy error: [FAILED] [invalid url [http://:80/badRequest?msg=Not+enough+sessions+for+this+process.+Come+back+later.]: should have format /browserName/version/processName/priority/command]
+		return nil, errors.New(fmt.Sprintf("[PROXYING_FAILED] [%v]\n", requestInfo.error))
 	}
 
 	//Here we change request url
