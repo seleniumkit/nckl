@@ -77,11 +77,6 @@ func queue(r *http.Request) {
 		<-process.AwaitQueue
 	}
 
-	//Here we change request url
-	r.URL.Scheme = "http"
-	r.URL.Host = destination
-	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
-
 }
 
 type requestInfo struct {
@@ -126,12 +121,20 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	
-	resp, err := t.RoundTripper.RoundTrip(r)
+	if (r.URL.Path == badRequestPath) {
+		return t.RoundTripper.RoundTrip(r)
+	}
 	
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
+	
+	//Here we change request url
+	r.URL.Scheme = "http"
+	r.URL.Host = destination
+	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
+
+	resp, err := t.RoundTripper.RoundTrip(r)
 	
 	browserId := requestInfo.browser
 	select {
@@ -222,12 +225,11 @@ func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 }
 
 func isNewSessionRequest(httpMethod string, command string) bool {
-	return httpMethod == "POST" && command == "session"
+	return httpMethod == http.MethodPost && command == "session"
 }
 
 func isDeleteSessionRequest(httpMethod string, command string) (bool, string) {
-
-	if httpMethod == "DELETE" && strings.HasPrefix(command, "session") {
+	if httpMethod == http.MethodDelete && strings.HasPrefix(command, "session") {
 		pieces := strings.Split(command, slash)
 		if len(pieces) == 2 { //Against DELETE window url
 			return true, pieces[1]
@@ -293,8 +295,7 @@ func getActiveProcessesPriorities(browserState BrowserState) ProcessMetrics {
 }
 
 func isProcessActive(process *Process) bool {
-	lastActivitySeconds := time.Now().Sub(process.LastActivity).Nanoseconds()
-	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || lastActivitySeconds < 5*updateRate.Nanoseconds()
+	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || time.Now().Sub(process.LastActivity) > updateRate
 }
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
@@ -309,7 +310,7 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
-			log.Printf("Process [%s] stopped\n", processName)
+			log.Printf("Process [%s] is stopped\n", processName)
 			ret[processName] = 0
 		}
 	}

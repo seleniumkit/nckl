@@ -11,6 +11,10 @@
                 <host name="firefox33-two-3.example.com" port="4444" count="5"></host>
             </region>
         </version>
+        <version number="missing">
+            <region name="one">
+            </region>
+        </version>
     </browser>
     <browser name="chrome" defaultVersion="42.0">
         <version number="42.0">

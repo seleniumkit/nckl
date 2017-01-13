@@ -70,6 +70,7 @@ func hostFromServer(srv *httptest.Server) string {
 }
 
 func TestStatus(t *testing.T) {
+	requestSession("first", 1)
 	rsp, err := http.Post(createUrl("/status"), "", nil)
 	AssertThat(t, err, Is{nil})
 	AssertThat(t, rsp, Code{http.StatusOK})
@@ -147,15 +148,56 @@ func TestWaitInQueue(t *testing.T) {
 	AssertThat(t, secondProcessTimeouts, EqualTo{20})
 }
 
+func TestNotEnoughSessions(t *testing.T) {
+	reqUrl := createUrl("/wd/hub/firefox/missing/test/1/session")
+	resp, err := http.Post(
+		reqUrl,
+		"text/plain",
+		strings.NewReader("payload"),
+	)
+	AssertThat(t, err, Is{nil})
+	AssertThat(t, resp, Code{http.StatusBadRequest})
+}
+
+func TestInvalidRequest(t *testing.T) {
+	reqUrl := createUrl("/wd/hub/session")
+	resp, err := http.Post(
+		reqUrl,
+		"text/plain",
+		strings.NewReader("payload"),
+	)
+	AssertThat(t, err, Is{nil})
+	AssertThat(t, resp, Code{http.StatusBadRequest})
+}
+
+func TestDeleteSession(t *testing.T) {
+	process := createProcess(1, 1)
+	process.CapacityQueue.Push()
+	sessions = make(Sessions)
+	sessions["test-session"] = process
+	AssertThat(t, process.CapacityQueue.Size(), EqualTo{1})
+	reqUrl := createUrl("/wd/hub/firefox/33.0/test-process/1/session/test-session")
+	req, _ := http.NewRequest(http.MethodDelete, reqUrl, strings.NewReader("payload"))
+	resp, err := http.DefaultClient.Do(req)
+	AssertThat(t, err, Is{nil})
+	AssertThat(t, resp, Code{http.StatusOK})
+	AssertThat(t, len(sessions), EqualTo{0})
+	AssertThat(t, process.CapacityQueue.Size(), EqualTo{0})
+}
+
 func requestTimeouts(processName string, priority int) bool {
 	return actionTimeouts(func() {
-		reqUrl := createUrl(fmt.Sprintf("/wd/hub/firefox/33.0/%s/%d/session", processName, priority))
-		http.Post(
-			reqUrl,
-			"text/plain",
-			strings.NewReader("payload"),
-		)
+		requestSession(processName, priority)
 	})
+}
+
+func requestSession(processName string, priority int) {
+	reqUrl := createUrl(fmt.Sprintf("/wd/hub/firefox/33.0/%s/%d/session", processName, priority))
+	http.Post(
+		reqUrl,
+		"text/plain",
+		strings.NewReader("payload"),
+	)
 }
 
 func createBackendSrv(statusCode int) *httptest.Server {
