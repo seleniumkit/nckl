@@ -50,7 +50,7 @@ func queue(r *http.Request) {
 
 	err := requestInfo.error
 	if err != nil {
-		log.Printf("[REQUEST_ERROR] [%v]\n", err)
+		log.Printf("[INVALID_REQUEST] [%v]\n", err)
 		redirectToBadRequest(r, err.Error())
 		return
 	}
@@ -76,6 +76,11 @@ func queue(r *http.Request) {
 		process.CapacityQueue.Push()
 		<-process.AwaitQueue
 	}
+
+	//Here we change request url
+	r.URL.Scheme = "http"
+	r.URL.Host = destination
+	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 
 }
 
@@ -122,68 +127,55 @@ type transport struct {
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	
-	if (r.URL.Path == badRequestPath) {
-		return t.RoundTripper.RoundTrip(r)
-	}
-	
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
 	browserId := requestInfo.browser
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
-
-	if requestInfo.error != nil {
-		cleanupQueue(isNewSessionRequest, requestInfo)
-		return nil, errors.New(fmt.Sprintf("[PROXYING_FAILED] [%v]\n", requestInfo.error))
-	}
-
-	//Here we change request url
-	r.URL.Scheme = "http"
-	r.URL.Host = destination
-	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
-
+	
 	resp, err := t.RoundTripper.RoundTrip(r)
 	select {
 	case <-r.Context().Done():
 		log.Printf("[CLIENT_DISCONNECTED]  [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 		cleanupQueue(isNewSessionRequest, requestInfo)
-		return nil, errors.New("Client disconnected")
+		return resp, nil
 	default:
 	}
 	if err != nil {
+		log.Printf("[REQUEST_ERROR] [%v]\n", err)
 		cleanupQueue(isNewSessionRequest, requestInfo)
-		return nil, err
 	}
 
 	if isNewSessionRequest {
 		if resp.StatusCode == http.StatusOK {
-			
 			body, _ := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
 			var reply map[string]interface{}
 			err = json.Unmarshal(body, &reply)
-			if err != nil {
-				cleanupQueue(isNewSessionRequest, requestInfo)
-				return nil, err
-			}
-			rawSessionId := reply["sessionId"]
-			switch rawSessionId.(type) {
-			case string:
-				{
-					sessionId := rawSessionId.(string)
-	
-					sessionLock.Lock()
-					sessions[sessionId] = requestInfo.process
-					sessionLock.Unlock()
-					storage.AddSession(sessionId)
-					go func() {
-						time.Sleep(sessionTimeout)
-						deleteSessionWithTimeout(sessionId, true)
-					}()
-					storage.OnSessionDeleted(sessionId, deleteSession)
-					resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-					log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
-					return resp, nil
+			if err == nil {
+				rawSessionId := reply["sessionId"]
+				switch rawSessionId.(type) {
+				case string:
+					{
+						sessionId := rawSessionId.(string)
+		
+						sessionLock.Lock()
+						sessions[sessionId] = requestInfo.process
+						sessionLock.Unlock()
+						storage.AddSession(sessionId)
+						go func() {
+							time.Sleep(sessionTimeout)
+							deleteSessionWithTimeout(sessionId, true)
+						}()
+						storage.OnSessionDeleted(sessionId, deleteSession)
+						resp.Body.Close()
+						resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+						log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+						return resp, nil
+					}
 				}
+			} else {
+				log.Printf("[JSON_ERROR] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+				cleanupQueue(isNewSessionRequest, requestInfo)
+				return resp, err
 			}
 		}
 		log.Printf("[NOT_CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
@@ -194,7 +186,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		deleteSession(sessionId)
 	}
 
-	return resp, nil
+	return resp, err
 }
 
 func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
@@ -309,9 +301,11 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 	ret := ProcessMetrics{}
 	for processName, priority := range activeProcessesPriorities {
 		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections) / float64(storage.MembersCount()))
+		log.Printf("Process [%s] capacity = %d\n", processName, ret[processName])
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
+			log.Printf("Process [%s] stopped\n", processName)
 			ret[processName] = 0
 		}
 	}
