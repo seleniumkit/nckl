@@ -186,6 +186,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 			}
 		}
+		log.Printf("[NOT_CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 		cleanupQueue(isNewSessionRequest, requestInfo)
 	}
 
