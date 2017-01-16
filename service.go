@@ -295,7 +295,7 @@ func getActiveProcessesPriorities(browserState BrowserState) ProcessMetrics {
 }
 
 func isProcessActive(process *Process) bool {
-	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || time.Now().Sub(process.LastActivity) > updateRate
+	return len(process.AwaitQueue) > 0 || process.CapacityQueue.Size() > 0 || time.Now().Sub(process.LastActivity) < updateRate
 }
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
