@@ -70,11 +70,13 @@ func queue(r *http.Request) {
 				return
 			}
 		}
-		go func() {
-			process.AwaitQueue <- struct{}{}
-		}()
-		process.CapacityQueue.Push()
+		process.AwaitQueue <- struct{}{}
+		disconnected := process.CapacityQueue.Push(r)
 		<-process.AwaitQueue
+		if (disconnected) {
+			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
+			process.CapacityQueue.Pop()
+		}
 	}
 
 }
@@ -138,9 +140,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	
 	browserId := requestInfo.browser
 	select {
-	case <-r.Context().Done():
-		log.Printf("[CLIENT_DISCONNECTED]  [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+	case <-r.Context().Done(): {
+		log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 		cleanupQueue(isNewSessionRequest, requestInfo)
+	}
 	default: {
 		if err != nil {
 			log.Printf("[REQUEST_ERROR] [%v]\n", err)

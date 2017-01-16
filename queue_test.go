@@ -4,14 +4,22 @@ import (
 	. "github.com/aandryashin/matchers"
 	"testing"
 	"time"
+	"net/http"
+	"strings"
 )
 
-const defaultTimeout = 100 * time.Millisecond
+const (
+	defaultTimeout = 100 * time.Millisecond
+)
+
+var (
+	emptyRequest, _ = http.NewRequest(http.MethodGet, "http://example.com/", strings.NewReader("payload"))
+)
 
 func TestSize(t *testing.T) {
 	queue := CreateQueue(1)
 	AssertThat(t, queue.Size(), EqualTo{0})
-	queue.Push()
+	queue.Push(emptyRequest)
 	AssertThat(t, queue.Size(), EqualTo{1})
 	queue.Pop()
 	AssertThat(t, queue.Size(), EqualTo{0})
@@ -19,13 +27,13 @@ func TestSize(t *testing.T) {
 
 func TestSetCapacity(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push()
+	queue.Push(emptyRequest)
 	queue.SetCapacity(2)
 	AssertThat(t, queue.Capacity(), EqualTo{2})
-	queue.Push()
-	queue.Push()
+	queue.Push(emptyRequest)
+	queue.Push(emptyRequest)
 	AssertThat(t, queue.Size(), EqualTo{3})
-	AssertThat(t, actionTimeouts(queue.Push), EqualTo{true})
+	AssertThat(t, actionTimeouts(func(){queue.Push(emptyRequest)}), EqualTo{true})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
@@ -35,16 +43,16 @@ func TestSetCapacity(t *testing.T) {
 
 func TestSetCapacityZeroLength(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push()
+	queue.Push(emptyRequest)
 	queue.Pop() //There's only one channel in slice but it's already empty and should be deleted
 	queue.SetCapacity(2)
-	queue.Push()
+	queue.Push(emptyRequest)
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 }
 
 func TestPop(t *testing.T) {
 	queue := CreateQueue(2)
-	queue.Push()
+	queue.Push(emptyRequest)
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
 }

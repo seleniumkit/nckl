@@ -11,11 +11,13 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 var (
 	srv        *httptest.Server
 	backendSrv *httptest.Server
+	backendSrvWait time.Duration
 )
 
 const (
@@ -172,7 +174,7 @@ func TestInvalidRequest(t *testing.T) {
 
 func TestDeleteSession(t *testing.T) {
 	process := createProcess(1, 1)
-	process.CapacityQueue.Push()
+	process.CapacityQueue.Push(emptyRequest)
 	sessions = make(Sessions)
 	sessions["test-session"] = process
 	AssertThat(t, process.CapacityQueue.Size(), EqualTo{1})
@@ -203,6 +205,9 @@ func requestSession(processName string, priority int) {
 func createBackendSrv(statusCode int) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if (backendSrvWait > 0) {
+			time.Sleep(backendSrvWait)
+		}
 		w.WriteHeader(statusCode)
 		w.Write([]byte(`{"state":"success", "sessionId": "123", "value": {}}`))
 	})
