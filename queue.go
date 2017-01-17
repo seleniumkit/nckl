@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 	"net/http"
+	"fmt"
 )
 
 // An extensible fixed size blocking queue based on channels.
@@ -35,6 +36,9 @@ type queueImpl struct {
 func (q *queueImpl) Push(r *http.Request) bool {
 	q.lock.RLock()
 	ch := q.channels[len(q.channels)-1]
+	if (len(ch) == 0) {
+		fmt.Println("Trying to push to zero length channel!")
+	}
 	q.lock.RUnlock()
 	var disconnected bool
 	select {
@@ -51,6 +55,9 @@ func (q *queueImpl) Push(r *http.Request) bool {
 func (q *queueImpl) Pop() {
 	q.lock.RLock()
 	ch := q.channels[0]
+	if (len(ch) == 0) {
+		fmt.Println("Trying to pop from zero length channel!")
+	}
 	q.lock.RUnlock()
 	<-ch
 	q.cleanupChannels()
