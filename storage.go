@@ -48,14 +48,20 @@ func (storage *EtcdStorage) DeleteSession(id string) {
 }
 
 func (storage *EtcdStorage) OnSessionDeleted(id string, fn func(string)) {
-	responseChannel := storage.c.Watch(storage.ctx, id)
+	ctx, cancel := context.WithTimeout(storage.ctx, sessionTimeout)
+	responseChannel := storage.c.Watch(ctx, id)
 	go func() {
-	loop:
 		for response := range responseChannel {
+			if (response.Canceled) {
+				fn(id)
+				cancel()
+				return
+			}
 			for _, ev := range response.Events {
 				if ev.Type == mvccpb.DELETE {
 					fn(id)
-					break loop
+					cancel()
+					return
 				}
 			}
 		}
