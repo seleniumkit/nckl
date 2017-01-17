@@ -36,8 +36,8 @@ type queueImpl struct {
 func (q *queueImpl) Push(r *http.Request) bool {
 	q.lock.RLock()
 	ch := q.channels[len(q.channels)-1]
-	if (len(ch) == 0) {
-		fmt.Println("Trying to push to zero length channel!")
+	if (cap(ch) == 0) {
+		fmt.Println("Trying to push to zero capacity channel!")
 	}
 	q.lock.RUnlock()
 	var disconnected bool
@@ -55,7 +55,7 @@ func (q *queueImpl) Push(r *http.Request) bool {
 func (q *queueImpl) Pop() {
 	q.lock.RLock()
 	ch := q.channels[0]
-	if (len(ch) == 0) {
+	if (cap(ch) == 0) {
 		fmt.Println("Trying to pop from zero length channel!")
 	}
 	q.lock.RUnlock()
