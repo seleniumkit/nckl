@@ -177,6 +177,7 @@ func TestDeleteSession(t *testing.T) {
 	process.CapacityQueue.Push(emptyRequest)
 	sessions = make(Sessions)
 	sessions["test-session"] = process
+	timeoutCancels["test-session"] = make(chan bool)
 	AssertThat(t, process.CapacityQueue.Size(), EqualTo{1})
 	reqUrl := createUrl("/wd/hub/firefox/33.0/test-process/1/session/test-session")
 	req, _ := http.NewRequest(http.MethodDelete, reqUrl, strings.NewReader("payload"))

@@ -29,9 +29,10 @@ const (
 )
 
 var (
-	sessions    = make(Sessions)
-	sessionLock sync.RWMutex
-	stateLock   sync.Mutex
+	sessions       = make(Sessions)
+	timeoutCancels = make(map[string] chan bool)
+	sessionLock    sync.RWMutex
+	stateLock      sync.Mutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +74,7 @@ func queue(r *http.Request) {
 		process.AwaitQueue <- struct{}{}
 		disconnected := process.CapacityQueue.Push(r)
 		<-process.AwaitQueue
-		if (disconnected) {
+		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 			process.CapacityQueue.Pop()
 			redirectToBadRequest(r, "")
@@ -125,37 +126,39 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if (r.URL.Path == badRequestPath) {
+	if r.URL.Path == badRequestPath {
 		return t.RoundTripper.RoundTrip(r)
 	}
-	
+
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
-	
+
 	//Here we change request url
 	r.URL.Scheme = "http"
 	r.URL.Host = destination
 	r.URL.Path = fmt.Sprintf("%s%s", wdHub, command)
 
 	resp, err := t.RoundTripper.RoundTrip(r)
-	
+
 	browserId := requestInfo.browser
 	select {
-	case <-r.Context().Done(): {
-		log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
-		cleanupQueue(isNewSessionRequest, requestInfo)
-	}
-	default: {
-		if err != nil {
-			log.Printf("[REQUEST_ERROR] [%v]\n", err)
+	case <-r.Context().Done():
+		{
+			log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
 			cleanupQueue(isNewSessionRequest, requestInfo)
-		} else {
-			processResponse(isNewSessionRequest, requestInfo, r, resp)
+		}
+	default:
+		{
+			if err != nil {
+				log.Printf("[REQUEST_ERROR] [%v]\n", err)
+				cleanupQueue(isNewSessionRequest, requestInfo)
+			} else {
+				processResponse(isNewSessionRequest, requestInfo, r, resp)
+			}
 		}
 	}
-	}
-	
+
 	return resp, err
 }
 
@@ -176,13 +179,20 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 				{
 					sessionId := rawSessionId.(string)
 
+					cancelTimeout := make(chan bool)
 					sessionLock.Lock()
 					sessions[sessionId] = requestInfo.process
+					timeoutCancels[sessionId] = cancelTimeout
 					sessionLock.Unlock()
 					storage.AddSession(sessionId)
 					go func() {
-						time.Sleep(sessionTimeout)
-						deleteSessionWithTimeout(sessionId, true)
+						select {
+						case <-time.After(sessionTimeout):
+							{
+								deleteSessionWithTimeout(sessionId, true)
+							}
+						case <-cancelTimeout:
+						}
 					}()
 					storage.OnSessionDeleted(sessionId, deleteSession)
 					resp.Body.Close()
@@ -214,14 +224,19 @@ func deleteSession(sessionId string) {
 func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 	sessionLock.RLock()
 	process, ok := sessions[sessionId]
+	cancel, _ := timeoutCancels[sessionId]
 	sessionLock.RUnlock()
 	if ok {
 		if timedOut {
 			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 		}
 		log.Printf("[DELETING] [%s]\n", sessionId)
+		if (cancel != nil) {
+			close(cancel)
+		}
 		sessionLock.Lock()
 		delete(sessions, sessionId)
+		delete(timeoutCancels, sessionId)
 		sessionLock.Unlock()
 		process.CapacityQueue.Pop()
 		log.Printf("[DELETED] [%s]\n", sessionId)
