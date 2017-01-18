@@ -46,7 +46,7 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 func queue(r *http.Request) {
 	requestInfo := getRequestInfo(r)
 
-	ctx, _ := context.WithTimeout(r.Context(), sessionTimeout)
+	ctx, _ := context.WithTimeout(r.Context(), requestTimeout)
 	r = r.WithContext(ctx)
 
 	err := requestInfo.error
@@ -187,7 +187,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 					storage.AddSession(sessionId)
 					go func() {
 						select {
-						case <-time.After(sessionTimeout):
+						case <-time.After(requestTimeout):
 							{
 								deleteSessionWithTimeout(sessionId, true)
 							}

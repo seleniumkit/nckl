@@ -33,7 +33,7 @@ func (storage *EtcdStorage) MembersCount() int {
 }
 
 func (storage *EtcdStorage) AddSession(id string) {
-	lease, err := storage.c.Grant(storage.ctx, int64(sessionTimeout))
+	lease, err := storage.c.Grant(storage.ctx, int64(requestTimeout))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func (storage *EtcdStorage) DeleteSession(id string) {
 }
 
 func (storage *EtcdStorage) OnSessionDeleted(id string, fn func(string)) {
-	ctx, cancel := context.WithTimeout(storage.ctx, sessionTimeout)
+	ctx, cancel := context.WithTimeout(storage.ctx, requestTimeout)
 	responseChannel := storage.c.Watch(ctx, id)
 	go func() {
 		for response := range responseChannel {
