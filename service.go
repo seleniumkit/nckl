@@ -30,7 +30,7 @@ const (
 
 var (
 	sessions       = make(Sessions)
-	timeoutCancels = make(map[string] chan bool)
+	timeoutCancels = make(map[string]chan bool)
 	sessionLock    sync.RWMutex
 	stateLock      sync.Mutex
 )
@@ -231,7 +231,7 @@ func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
 		}
 		log.Printf("[DELETING] [%s]\n", sessionId)
-		if (cancel != nil) {
+		if cancel != nil {
 			close(cancel)
 		}
 		sessionLock.Lock()

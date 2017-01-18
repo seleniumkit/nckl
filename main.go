@@ -18,7 +18,7 @@ var (
 	updateRate       time.Duration
 	quotaDir         string
 	usersFile        string
-	requestTimeout time.Duration
+	requestTimeout   time.Duration
 	endpoints        []string
 	storage          Storage
 	state            = make(State)
@@ -62,10 +62,10 @@ func refreshAllCapacities() {
 func init() {
 	flag.StringVar(&listen, "listen", ":8080", "Host and port to listen to")
 	flag.StringVar(&destination, "destination", ":4444", "Host and port to proxy to")
-	flag.DurationVar(&updateRate, "updateRate", 1 * time.Second, "Time between refreshing queue lengths like 1s or 500ms")
+	flag.DurationVar(&updateRate, "updateRate", 1*time.Second, "Time between refreshing queue lengths like 1s or 500ms")
 	flag.StringVar(&quotaDir, "quotaDir", "quota", "Directory to search for quota XML files")
 	flag.StringVar(&usersFile, "users", "users.properties", "Path of the list of users")
-	flag.DurationVar(&requestTimeout, "timeout", 300 * time.Second, "Session timeout like 3s or 500ms")
+	flag.DurationVar(&requestTimeout, "timeout", 300*time.Second, "Session timeout like 3s or 500ms")
 	var list string
 	flag.StringVar(&list, "endpoints", "http://127.0.0.1:2379", "comma-separated list of etcd endpoints")
 	flag.Parse()

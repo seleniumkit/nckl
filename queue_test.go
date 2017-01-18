@@ -2,10 +2,10 @@ package main
 
 import (
 	. "github.com/aandryashin/matchers"
-	"testing"
-	"time"
 	"net/http"
 	"strings"
+	"testing"
+	"time"
 )
 
 const (
@@ -33,7 +33,7 @@ func TestSetCapacity(t *testing.T) {
 	queue.Push(emptyRequest)
 	queue.Push(emptyRequest)
 	AssertThat(t, queue.Size(), EqualTo{3})
-	AssertThat(t, actionTimeouts(func(){queue.Push(emptyRequest)}), EqualTo{true})
+	AssertThat(t, actionTimeouts(func() { queue.Push(emptyRequest) }), EqualTo{true})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})

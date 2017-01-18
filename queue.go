@@ -1,9 +1,9 @@
 package main
 
 import (
-	"sync"
-	"net/http"
 	"fmt"
+	"net/http"
+	"sync"
 )
 
 // An extensible fixed size blocking queue based on channels.
@@ -36,18 +36,20 @@ type queueImpl struct {
 func (q *queueImpl) Push(r *http.Request) bool {
 	q.lock.RLock()
 	ch := q.channels[len(q.channels)-1]
-	if (cap(ch) == 0) {
+	if cap(ch) == 0 {
 		fmt.Println("Trying to push to zero capacity channel!")
 	}
 	q.lock.RUnlock()
 	var disconnected bool
 	select {
-	case <-r.Context().Done(): {
-		disconnected = true
-	}
-	case ch <- struct{}{} : {
-		disconnected = false
-	}
+	case <-r.Context().Done():
+		{
+			disconnected = true
+		}
+	case ch <- struct{}{}:
+		{
+			disconnected = false
+		}
 	}
 	return disconnected
 }
@@ -55,7 +57,7 @@ func (q *queueImpl) Push(r *http.Request) bool {
 func (q *queueImpl) Pop() {
 	q.lock.RLock()
 	ch := q.channels[0]
-	if (cap(ch) == 0) {
+	if cap(ch) == 0 {
 		fmt.Println("Trying to pop from zero length channel!")
 	}
 	q.lock.RUnlock()
@@ -89,7 +91,7 @@ func (q *queueImpl) Capacity() int {
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {
-	//TODO: we often set 0 and then positive number. This is why a lot of channels exist and effective queue size can be many times greater than its desired capacity 
+	//TODO: we often set 0 and then positive number. This is why a lot of channels exist and effective queue size can be many times greater than its desired capacity
 	if len(q.channels) == 0 || q.Capacity() != newCapacity {
 		q.lock.Lock()
 		q.channels = append(q.channels, make(chan struct{}, newCapacity))

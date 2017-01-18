@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	srv        *httptest.Server
-	backendSrv *httptest.Server
+	srv            *httptest.Server
+	backendSrv     *httptest.Server
 	backendSrvWait time.Duration
 )
 
@@ -206,7 +206,7 @@ func requestSession(processName string, priority int) {
 func createBackendSrv(statusCode int) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if (backendSrvWait > 0) {
+		if backendSrvWait > 0 {
 			time.Sleep(backendSrvWait)
 		}
 		w.WriteHeader(statusCode)

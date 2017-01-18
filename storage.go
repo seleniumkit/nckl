@@ -52,7 +52,7 @@ func (storage *EtcdStorage) OnSessionDeleted(id string, fn func(string)) {
 	responseChannel := storage.c.Watch(ctx, id)
 	go func() {
 		for response := range responseChannel {
-			if (response.Canceled) {
+			if response.Canceled {
 				fn(id)
 				cancel()
 				return
