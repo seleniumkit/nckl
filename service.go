@@ -33,6 +33,7 @@ var (
 	timeoutCancels = make(map[string]chan bool)
 	sessionLock    sync.RWMutex
 	stateLock      sync.Mutex
+	updateLock     sync.Mutex
 )
 
 func badRequest(w http.ResponseWriter, r *http.Request) {
@@ -158,18 +159,22 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 		}
 	}
-
+	if (r.Body != nil) {
+		r.Body.Close()
+	}
 	return resp, err
 }
 
 func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http.Request, resp *http.Response) {
 	browserId := requestInfo.browser
+	processName := requestInfo.processName
+	process := requestInfo.process
 	if isNewSessionRequest {
 		if resp.StatusCode == http.StatusOK {
 			body, _ := ioutil.ReadAll(resp.Body)
 			var reply map[string]interface{}
 			if json.Unmarshal(body, &reply) != nil {
-				log.Printf("[JSON_ERROR] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+				log.Printf("[JSON_ERROR] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 				cleanupQueue(isNewSessionRequest, requestInfo)
 				return
 			}
@@ -181,7 +186,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 
 					cancelTimeout := make(chan bool)
 					sessionLock.Lock()
-					sessions[sessionId] = requestInfo.process
+					sessions[sessionId] = process
 					timeoutCancels[sessionId] = cancelTimeout
 					sessionLock.Unlock()
 					storage.AddSession(sessionId)
@@ -197,12 +202,12 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 					storage.OnSessionDeleted(sessionId, deleteSession)
 					resp.Body.Close()
 					resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-					log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+					log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 					return
 				}
 			}
 		}
-		log.Printf("[NOT_CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+		log.Printf("[NOT_CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 		cleanupQueue(isNewSessionRequest, requestInfo)
 	}
 
@@ -213,7 +218,8 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 
 func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
 	if isNewSessionRequest {
-		requestInfo.process.CapacityQueue.Pop()
+		process := requestInfo.process
+		process.CapacityQueue.Pop()
 	}
 }
 
@@ -282,6 +288,8 @@ func parsePath(url *url.URL) (error, string, string, string, int, string) {
 }
 
 func getProcess(browserState BrowserState, name string, priority int, maxConnections int) *Process {
+	updateLock.Lock()
+	defer updateLock.Unlock()
 	if _, ok := browserState[name]; !ok {
 		currentPriorities := getActiveProcessesPriorities(browserState)
 		currentPriorities[name] = priority
@@ -354,6 +362,8 @@ func updateProcessCapacities(browserState BrowserState, newCapacities ProcessMet
 }
 
 func refreshCapacities(maxConnections int, browserState BrowserState) {
+	updateLock.Lock()
+	defer updateLock.Unlock()
 	currentPriorities := getActiveProcessesPriorities(browserState)
 	newCapacities := calculateCapacities(browserState, currentPriorities, maxConnections)
 	updateProcessCapacities(browserState, newCapacities)
