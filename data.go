@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -15,7 +14,6 @@ type Process struct {
 	AwaitQueue    chan struct{}
 	CapacityQueue Queue
 	LastActivity  time.Time
-	Lock          sync.RWMutex
 }
 
 type BrowserStatus struct {

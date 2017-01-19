@@ -334,11 +334,9 @@ func calculateCapacities(browserState BrowserState, activeProcessesPriorities Pr
 	ret := ProcessMetrics{}
 	for processName, priority := range activeProcessesPriorities {
 		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections) / float64(storage.MembersCount()))
-		log.Printf("Process [%s] capacity = %d\n", processName, ret[processName])
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
-			log.Printf("Process [%s] is stopped\n", processName)
 			ret[processName] = 0
 		}
 	}

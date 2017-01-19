@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
+	"bytes"
+	"fmt"
 )
 
 // An extensible fixed size blocking queue based on channels.
@@ -17,6 +18,7 @@ type Queue interface {
 	Size() int
 	Capacity() int
 	SetCapacity(newCapacity int)
+	Dump() string
 }
 
 func CreateQueue(initialCapacity int) *queueImpl {
@@ -36,9 +38,6 @@ type queueImpl struct {
 func (q *queueImpl) Push(r *http.Request) bool {
 	q.lock.RLock()
 	ch := q.channels[len(q.channels)-1]
-	if cap(ch) == 0 {
-		fmt.Println("Trying to push to zero capacity channel!")
-	}
 	q.lock.RUnlock()
 	var disconnected bool
 	select {
@@ -57,9 +56,6 @@ func (q *queueImpl) Push(r *http.Request) bool {
 func (q *queueImpl) Pop() {
 	q.lock.RLock()
 	ch := q.channels[0]
-	if cap(ch) == 0 {
-		fmt.Println("Trying to pop from zero length channel!")
-	}
 	q.lock.RUnlock()
 	<-ch
 	q.cleanupChannels()
@@ -98,4 +94,13 @@ func (q *queueImpl) SetCapacity(newCapacity int) {
 		q.lock.Unlock()
 	}
 	q.cleanupChannels()
+}
+
+func (q *queueImpl) Dump() string {
+	var bb bytes.Buffer
+	bb.WriteString(fmt.Sprintf("Queue: %d %d\n", q.Capacity(), q.Size()));
+	for i, ch := range q.channels {
+		bb.WriteString(fmt.Sprintf("#%d %d %d\n", i, cap(ch), len(ch)));
+	}
+	return bb.String();
 }

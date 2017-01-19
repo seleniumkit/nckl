@@ -72,6 +72,31 @@ func init() {
 	endpoints = strings.Split(list, ",")
 }
 
+
+func dumpState() chan os.Signal {
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGUSR2)
+	for {
+		<-ch
+		log.Println("==========")
+		log.Println("STATE DUMP")
+		log.Println("==========")
+		for quotaName, quotaState := range state {
+			log.Printf("Quota: %s\n", quotaName)
+			for browserId, browserState := range *quotaState {
+				log.Printf("Browser: %s %s\n", browserId.Name, browserId.Version)
+				for processName, process := range *browserState {
+					log.Printf("Process: %s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate))
+					log.Println("Queue:")
+					log.Println(process.CapacityQueue.Dump())
+					
+				}
+			}
+		}
+	}
+	return ch
+}
+
 func waitForShutdown(shutdownAction func()) {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -99,6 +124,8 @@ func main() {
 	defer close(scheduler)
 	storage = createStorage()
 	defer storage.Close()
+	dumpChan := dumpState()
+	defer close(dumpChan)
 	go waitForShutdown(func() {
 		log.Println("shutting down server")
 		//TODO: wait for all connections to close with timeout
