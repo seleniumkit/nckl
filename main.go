@@ -10,6 +10,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"bytes"
+	"fmt"
 )
 
 var (
@@ -79,21 +81,22 @@ func dumpState() chan os.Signal {
 	go func() {
 		for {
 			<-ch
-			log.Println("==========")
-			log.Println("STATE DUMP")
-			log.Println("==========")
+			var bb bytes.Buffer
+			bb.WriteString("==========\n")
+			bb.WriteString("STATE DUMP\n")
+			bb.WriteString("==========\n")
 			for quotaName, quotaState := range state {
-				log.Printf("Quota: %s\n", quotaName)
+				bb.WriteString(fmt.Sprintf("Quota: %s\n", quotaName))
 				for browserId, browserState := range *quotaState {
-					log.Printf("Browser: %s %s\n", browserId.Name, browserId.Version)
+					bb.WriteString(fmt.Sprintf("Browser: %s %s\n", browserId.Name, browserId.Version))
 					for processName, process := range *browserState {
-						log.Printf("Process: %s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate))
-						log.Println("Queue:")
-						log.Println(process.CapacityQueue.Dump())
+						bb.WriteString(fmt.Sprintf("Process: %s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate)))
+						bb.WriteString(process.CapacityQueue.Dump())
 						
 					}
 				}
 			}
+			log.Println(bb.String())
 		}
 	}()
 	return ch

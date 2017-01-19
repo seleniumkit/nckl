@@ -98,9 +98,9 @@ func (q *queueImpl) SetCapacity(newCapacity int) {
 
 func (q *queueImpl) Dump() string {
 	var bb bytes.Buffer
-	bb.WriteString(fmt.Sprintf("Queue: %d %d\n", q.Capacity(), q.Size()));
+	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d\n", q.Capacity(), q.Size()));
 	for i, ch := range q.channels {
-		bb.WriteString(fmt.Sprintf("#%d %d %d\n", i, cap(ch), len(ch)));
+		bb.WriteString(fmt.Sprintf("ch=%d cap=%d len=%d\n", i, cap(ch), len(ch)));
 	}
 	return bb.String();
 }
