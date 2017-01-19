@@ -82,6 +82,7 @@ func dumpState() chan os.Signal {
 		for {
 			<-ch
 			var bb bytes.Buffer
+			bb.WriteString("\n")
 			bb.WriteString("==========\n")
 			bb.WriteString("STATE DUMP\n")
 			bb.WriteString("==========\n")
