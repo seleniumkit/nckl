@@ -89,14 +89,35 @@ func dumpState() chan os.Signal {
 			for quotaName, quotaState := range state {
 				bb.WriteString(fmt.Sprintf("Quota: %s\n", quotaName))
 				for browserId, browserState := range *quotaState {
+					bb.WriteString("---\n")
 					bb.WriteString(fmt.Sprintf("Browser: %s %s\n", browserId.Name, browserId.Version))
 					for processName, process := range *browserState {
-						bb.WriteString(fmt.Sprintf("Process: %s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate)))
+						bb.WriteString(fmt.Sprintf("Process: name=%s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate)))
 						bb.WriteString(process.CapacityQueue.Dump())
 						
 					}
 				}
 			}
+			
+			bb.WriteString("\n")
+			bb.WriteString("=============\n")
+			bb.WriteString("SESSIONS DUMP\n")
+			bb.WriteString("=============\n")
+			for sessionId, process := range sessions {
+				bb.WriteString("---\n")
+				bb.WriteString(fmt.Sprintf("Session: id=%s\n", sessionId))
+				bb.WriteString(process.CapacityQueue.Dump())
+			}
+			
+			bb.WriteString("\n")
+			bb.WriteString("====================\n")
+			bb.WriteString("TIMEOUT CANCELS DUMP\n")
+			bb.WriteString("====================\n")
+			for sessionId, _ := range timeoutCancels {
+				bb.WriteString("---\n")
+				bb.WriteString(fmt.Sprintf("Cancel: sessionId=%s\n", sessionId))
+			}
+			
 			log.Println(bb.String())
 		}
 	}()
