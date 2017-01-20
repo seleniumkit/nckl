@@ -174,7 +174,7 @@ func TestInvalidRequest(t *testing.T) {
 
 func TestDeleteSession(t *testing.T) {
 	process := createProcess(1, 1)
-	process.CapacityQueue.Push(emptyRequest)
+	process.CapacityQueue.Push(emptyRequest.Context())
 	sessions = make(Sessions)
 	sessions["test-session"] = process
 	timeoutCancels["test-session"] = make(chan bool)

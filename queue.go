@@ -1,10 +1,10 @@
 package main
 
 import (
-	"net/http"
 	"sync"
 	"bytes"
 	"fmt"
+	"context"
 )
 
 // An extensible fixed size blocking queue based on channels.
@@ -13,7 +13,7 @@ import (
 // we use the first channel. We remove channels from the list when they are
 // emptied.
 type Queue interface {
-	Push(r *http.Request) bool
+	Push(context context.Context) bool
 	Pop()
 	Size() int
 	Capacity() int
@@ -35,22 +35,14 @@ type queueImpl struct {
 	lock     sync.RWMutex
 }
 
-func (q *queueImpl) Push(r *http.Request) bool {
+func (q *queueImpl) Push(context context.Context) bool {
 	q.lock.RLock()
 	ch := q.channels[len(q.channels)-1]
 	q.lock.RUnlock()
-	var disconnected bool
 	select {
-	case <-r.Context().Done():
-		{
-			disconnected = true
-		}
-	case ch <- struct{}{}:
-		{
-			disconnected = false
-		}
+	case <-context.Done(): return true
+	case ch <- struct{}{}: return false
 	}
-	return disconnected
 }
 
 func (q *queueImpl) Pop() {

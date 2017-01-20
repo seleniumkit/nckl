@@ -73,11 +73,10 @@ func queue(r *http.Request) {
 			}
 		}
 		process.AwaitQueue <- struct{}{}
-		disconnected := process.CapacityQueue.Push(r)
+		disconnected := process.CapacityQueue.Push(r.Context())
 		<-process.AwaitQueue
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
-			process.CapacityQueue.Pop()
 			redirectToBadRequest(r, "")
 			return
 		}

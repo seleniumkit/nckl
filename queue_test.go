@@ -19,7 +19,7 @@ var (
 func TestSize(t *testing.T) {
 	queue := CreateQueue(1)
 	AssertThat(t, queue.Size(), EqualTo{0})
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
 	AssertThat(t, queue.Size(), EqualTo{1})
 	queue.Pop()
 	AssertThat(t, queue.Size(), EqualTo{0})
@@ -27,13 +27,13 @@ func TestSize(t *testing.T) {
 
 func TestSetCapacity(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
 	queue.SetCapacity(2)
 	AssertThat(t, queue.Capacity(), EqualTo{2})
-	queue.Push(emptyRequest)
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
+	queue.Push(emptyRequest.Context())
 	AssertThat(t, queue.Size(), EqualTo{3})
-	AssertThat(t, actionTimeouts(func() { queue.Push(emptyRequest) }), EqualTo{true})
+	AssertThat(t, actionTimeouts(func() { queue.Push(emptyRequest.Context()) }), EqualTo{true})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
@@ -43,16 +43,16 @@ func TestSetCapacity(t *testing.T) {
 
 func TestSetCapacityZeroLength(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
 	queue.Pop() //There's only one channel in slice but it's already empty and should be deleted
 	queue.SetCapacity(2)
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 }
 
 func TestPop(t *testing.T) {
 	queue := CreateQueue(2)
-	queue.Push(emptyRequest)
+	queue.Push(emptyRequest.Context())
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
 	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
 }
