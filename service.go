@@ -151,7 +151,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	default:
 		{
 			if err != nil {
-				log.Printf("[REQUEST_ERROR] [%v]\n", err)
+				log.Printf("[REQUEST_ERROR] [%s %s] [%s] [%d] [%v]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority, err)
 				cleanupQueue(isNewSessionRequest, requestInfo)
 			} else {
 				processResponse(isNewSessionRequest, requestInfo, r, resp)
@@ -193,15 +193,15 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 						select {
 						case <-time.After(requestTimeout):
 							{
-								deleteSessionWithTimeout(sessionId, true)
+								deleteSessionWithTimeout(sessionId, requestInfo, true)
 							}
 						case <-cancelTimeout:
 						}
 					}()
-					storage.OnSessionDeleted(sessionId, deleteSession)
+					storage.OnSessionDeleted(sessionId, func(id string) {deleteSession(id, requestInfo)})
 					resp.Body.Close()
 					resp.Body = ioutil.NopCloser(bytes.NewReader(body))
-					log.Printf("[CREATED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
+					log.Printf("[CREATED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 					return
 				}
 			}
@@ -211,7 +211,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 	}
 
 	if ok, sessionId := isDeleteSessionRequest(r.Method, requestInfo.command); ok {
-		deleteSession(sessionId)
+		deleteSession(sessionId, requestInfo)
 	}
 }
 
@@ -222,20 +222,24 @@ func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
 	}
 }
 
-func deleteSession(sessionId string) {
-	deleteSessionWithTimeout(sessionId, false)
+func deleteSession(sessionId string, requestInfo *requestInfo) {
+	deleteSessionWithTimeout(sessionId, requestInfo, false)
 }
 
-func deleteSessionWithTimeout(sessionId string, timedOut bool) {
+func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedOut bool) {
+	browserId := requestInfo.browser
+	processName := requestInfo.processName
+	process := requestInfo.process
+	
 	sessionLock.RLock()
 	process, ok := sessions[sessionId]
 	cancel, _ := timeoutCancels[sessionId]
 	sessionLock.RUnlock()
 	if ok {
 		if timedOut {
-			log.Printf("[TIMED_OUT] [%s]\n", sessionId)
+			log.Printf("[TIMED_OUT] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 		}
-		log.Printf("[DELETING] [%s]\n", sessionId)
+		log.Printf("[DELETING] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 		if cancel != nil {
 			close(cancel)
 		}
@@ -244,7 +248,7 @@ func deleteSessionWithTimeout(sessionId string, timedOut bool) {
 		delete(timeoutCancels, sessionId)
 		sessionLock.Unlock()
 		process.CapacityQueue.Pop()
-		log.Printf("[DELETED] [%s]\n", sessionId)
+		log.Printf("[DELETED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 	}
 	storage.DeleteSession(sessionId)
 }
