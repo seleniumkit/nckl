@@ -19,42 +19,42 @@ var (
 func TestSize(t *testing.T) {
 	queue := CreateQueue(1)
 	AssertThat(t, queue.Size(), EqualTo{0})
-	queue.Push(emptyRequest.Context())
+	lease, _ := queue.Push(emptyRequest.Context())
 	AssertThat(t, queue.Size(), EqualTo{1})
-	queue.Pop()
+	queue.Pop(lease)
 	AssertThat(t, queue.Size(), EqualTo{0})
 }
 
 func TestSetCapacity(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push(emptyRequest.Context())
+	lease1, _ := queue.Push(emptyRequest.Context())
 	queue.SetCapacity(2)
 	AssertThat(t, queue.Capacity(), EqualTo{2})
 	queue.Push(emptyRequest.Context())
-	queue.Push(emptyRequest.Context())
+	lease2, _ := queue.Push(emptyRequest.Context())
 	AssertThat(t, queue.Size(), EqualTo{3})
 	AssertThat(t, actionTimeouts(func() { queue.Push(emptyRequest.Context()) }), EqualTo{true})
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false}) //This one is the last push data
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease1) }), EqualTo{false})
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease2) }), EqualTo{false})
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease2) }), EqualTo{false})
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease2) }), EqualTo{false}) //This one is the last push data
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease2) }), EqualTo{true})
 }
 
 func TestSetCapacityZeroLength(t *testing.T) {
 	queue := CreateQueue(1)
-	queue.Push(emptyRequest.Context())
-	queue.Pop() //There's only one channel in slice but it's already empty and should be deleted
+	lease1, _ := queue.Push(emptyRequest.Context())
+	queue.Pop(lease1) //There's only one channel in slice but it's already empty and should be deleted
 	queue.SetCapacity(2)
-	queue.Push(emptyRequest.Context())
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
+	lease2, _ := queue.Push(emptyRequest.Context())
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease2) }), EqualTo{false})
 }
 
 func TestPop(t *testing.T) {
 	queue := CreateQueue(2)
-	queue.Push(emptyRequest.Context())
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{false})
-	AssertThat(t, actionTimeouts(queue.Pop), EqualTo{true})
+	lease, _ := queue.Push(emptyRequest.Context())
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease) }), EqualTo{false})
+	AssertThat(t, actionTimeouts(func() { queue.Pop(lease) }), EqualTo{true})
 }
 
 func actionTimeouts(action func()) bool {

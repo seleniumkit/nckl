@@ -1,10 +1,11 @@
 package main
 
 import (
-	"sync"
 	"bytes"
-	"fmt"
 	"context"
+	"fmt"
+	"sort"
+	"sync"
 )
 
 // An extensible fixed size blocking queue based on channels.
@@ -13,52 +14,61 @@ import (
 // we use the first channel. We remove channels from the list when they are
 // emptied.
 type Queue interface {
-	Push(context context.Context) bool
-	Pop()
+	Push(context context.Context) (Lease, bool)
+	Pop(lease Lease)
 	Size() int
 	Capacity() int
 	SetCapacity(newCapacity int)
 	Dump() string
 }
 
+type Lease uint64
+
 func CreateQueue(initialCapacity int) *queueImpl {
-	var channels []chan struct{}
 	ret := &queueImpl{
-		channels: channels,
+		channels: make(map[Lease]chan struct{}),
 	}
 	ret.SetCapacity(initialCapacity)
 	return ret
 }
 
 type queueImpl struct {
-	channels []chan struct{}
-	lock     sync.RWMutex
+	channels     map[Lease]chan struct{}
+	currentLease Lease
+	lock         sync.RWMutex
 }
 
-func (q *queueImpl) Push(context context.Context) bool {
+func (q *queueImpl) Push(context context.Context) (Lease, bool) {
 	q.lock.RLock()
-	ch := q.channels[len(q.channels)-1]
+	ch := q.channels[q.currentLease]
 	q.lock.RUnlock()
 	select {
-	case <-context.Done(): return true
-	case ch <- struct{}{}: return false
+	case <-context.Done():
+		return 0, true
+	case ch <- struct{}{}:
+		return q.currentLease, false
 	}
 }
 
-func (q *queueImpl) Pop() {
+func (q *queueImpl) Pop(lease Lease) {
 	q.lock.RLock()
-	ch := q.channels[0]
-	q.lock.RUnlock()
-	<-ch
-	q.cleanupChannels()
+	if ch, ok := q.channels[lease]; ok {
+		q.lock.RUnlock()
+		<-ch
+		q.cleanupChannels()
+	} else {
+		q.lock.RUnlock()
+	}
 }
 
 func (q *queueImpl) cleanupChannels() {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	if len(q.channels) > 1 && len(q.channels[0]) == 0 {
-		close(q.channels[0])
-		q.channels = q.channels[1:]
+	for lease, ch := range q.channels {
+		if lease != q.currentLease && len(ch) == 0 {
+			close(ch)
+			delete(q.channels, lease)
+		}
 	}
 }
 
@@ -75,14 +85,15 @@ func (q *queueImpl) Size() int {
 func (q *queueImpl) Capacity() int {
 	q.lock.RLock()
 	defer q.lock.RUnlock()
-	return cap(q.channels[len(q.channels)-1])
+	return cap(q.channels[q.currentLease])
 }
 
 func (q *queueImpl) SetCapacity(newCapacity int) {
 	//TODO: we often set 0 and then positive number. This is why a lot of channels exist and effective queue size can be many times greater than its desired capacity
 	if len(q.channels) == 0 || q.Capacity() != newCapacity {
 		q.lock.Lock()
-		q.channels = append(q.channels, make(chan struct{}, newCapacity))
+		q.currentLease++
+		q.channels[q.currentLease] = make(chan struct{}, newCapacity)
 		q.lock.Unlock()
 	}
 	q.cleanupChannels()
@@ -90,9 +101,15 @@ func (q *queueImpl) SetCapacity(newCapacity int) {
 
 func (q *queueImpl) Dump() string {
 	var bb bytes.Buffer
-	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d\n", q.Capacity(), q.Size()));
-	for i, ch := range q.channels {
-		bb.WriteString(fmt.Sprintf("ch=%d cap=%d len=%d\n", i, cap(ch), len(ch)));
+	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d\n", q.Capacity(), q.Size()))
+	leases := make([]int, len(q.channels))
+	for lease := range q.channels {
+		leases = append(leases, int(lease))
 	}
-	return bb.String();
+	sort.Ints(leases)
+	for lease := range leases {
+		ch := q.channels[Lease(lease)]
+		bb.WriteString(fmt.Sprintf("ch=%d cap=%d len=%d\n", lease, cap(ch), len(ch)))
+	}
+	return bb.String()
 }

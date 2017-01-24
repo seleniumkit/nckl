@@ -26,11 +26,13 @@ const (
 	badRequestPath    = "/badRequest"
 	badRequestMessage = "msg"
 	slash             = "/"
+	leaseKey          = "lease"
 )
 
 var (
 	sessions       = make(Sessions)
 	timeoutCancels = make(map[string]chan bool)
+	leases         = make(map[string]Lease)
 	sessionLock    sync.RWMutex
 	stateLock      sync.Mutex
 	updateLock     sync.Mutex
@@ -73,12 +75,14 @@ func queue(r *http.Request) {
 			}
 		}
 		process.AwaitQueue <- struct{}{}
-		disconnected := process.CapacityQueue.Push(r.Context())
+		lease, disconnected := process.CapacityQueue.Push(r.Context())
 		<-process.AwaitQueue
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 			return
 		}
+		ctx = context.WithValue(ctx, leaseKey, lease)
+		r = r.WithContext(ctx)
 	}
 
 }
@@ -90,6 +94,7 @@ type requestInfo struct {
 	processName    string
 	process        *Process
 	command        string
+	lease          Lease
 	error          error
 }
 
@@ -104,9 +109,16 @@ func getRequestInfo(r *http.Request) *requestInfo {
 
 	err, browserName, version, processName, priority, command := parsePath(r.URL)
 	if err != nil {
-		return &requestInfo{0, BrowserId{}, nil, "", nil, "", err}
+		return &requestInfo{0, BrowserId{}, nil, "", nil, "", 0, err}
 	}
 
+	rawLease := r.Context().Value(leaseKey)
+	var lease Lease
+	if rawLease != nil {
+		lease = rawLease.(Lease)
+	} else {
+		lease = Lease(0)
+	}
 	browserId := BrowserId{Name: browserName, Version: version}
 
 	if _, ok := quotaState[browserId]; !ok {
@@ -117,7 +129,7 @@ func getRequestInfo(r *http.Request) *requestInfo {
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 
-	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, nil}
+	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, lease, nil}
 }
 
 type transport struct {
@@ -131,6 +143,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	requestInfo := getRequestInfo(r)
 	command := requestInfo.command
+	process := requestInfo.process
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
 
 	//Here we change request url
@@ -144,20 +157,20 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	select {
 	case <-r.Context().Done():
 		{
-			log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority)
+			log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, process.Priority)
 			cleanupQueue(isNewSessionRequest, requestInfo)
 		}
 	default:
 		{
 			if err != nil {
-				log.Printf("[REQUEST_ERROR] [%s %s] [%s] [%d] [%v]\n", browserId.Name, browserId.Version, requestInfo.processName, requestInfo.process.Priority, err)
+				log.Printf("[REQUEST_ERROR] [%s %s] [%s] [%d] [%v]\n", browserId.Name, browserId.Version, requestInfo.processName, process.Priority, err)
 				cleanupQueue(isNewSessionRequest, requestInfo)
 			} else {
 				processResponse(isNewSessionRequest, requestInfo, r, resp)
 			}
 		}
 	}
-	if (r.Body != nil) {
+	if r.Body != nil {
 		r.Body.Close()
 	}
 	return resp, err
@@ -186,6 +199,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 					sessionLock.Lock()
 					sessions[sessionId] = process
 					timeoutCancels[sessionId] = cancelTimeout
+					leases[sessionId] = requestInfo.lease
 					sessionLock.Unlock()
 					storage.AddSession(sessionId)
 					go func() {
@@ -197,7 +211,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 						case <-cancelTimeout:
 						}
 					}()
-					storage.OnSessionDeleted(sessionId, func(id string) {deleteSession(id, requestInfo)})
+					storage.OnSessionDeleted(sessionId, func(id string) { deleteSession(id, requestInfo) })
 					resp.Body.Close()
 					resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 					log.Printf("[CREATED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
@@ -217,7 +231,7 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 func cleanupQueue(isNewSessionRequest bool, requestInfo *requestInfo) {
 	if isNewSessionRequest {
 		process := requestInfo.process
-		process.CapacityQueue.Pop()
+		process.CapacityQueue.Pop(requestInfo.lease)
 	}
 }
 
@@ -229,7 +243,7 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 	browserId := requestInfo.browser
 	processName := requestInfo.processName
 	process := requestInfo.process
-	
+
 	sessionLock.RLock()
 	process, ok := sessions[sessionId]
 	cancel, _ := timeoutCancels[sessionId]
@@ -245,8 +259,10 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 		sessionLock.Lock()
 		delete(sessions, sessionId)
 		delete(timeoutCancels, sessionId)
+		lease := leases[sessionId]
+		delete(leases, sessionId)
 		sessionLock.Unlock()
-		process.CapacityQueue.Pop()
+		process.CapacityQueue.Pop(lease)
 		log.Printf("[DELETED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 	}
 	storage.DeleteSession(sessionId)

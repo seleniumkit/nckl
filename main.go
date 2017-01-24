@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"flag"
+	"fmt"
 	client "github.com/coreos/etcd/clientv3"
 	"log"
 	"net/http"
@@ -10,8 +12,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"bytes"
-	"fmt"
 )
 
 var (
@@ -74,7 +74,6 @@ func init() {
 	endpoints = strings.Split(list, ",")
 }
 
-
 func dumpState() chan os.Signal {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGUSR2)
@@ -94,11 +93,11 @@ func dumpState() chan os.Signal {
 					for processName, process := range *browserState {
 						bb.WriteString(fmt.Sprintf("Process: name=%s priority=%d queued=%d lastUpdate=%s\n", processName, process.Priority, len(process.AwaitQueue), process.LastActivity.Format(time.UnixDate)))
 						bb.WriteString(process.CapacityQueue.Dump())
-						
+
 					}
 				}
 			}
-			
+
 			bb.WriteString("\n")
 			bb.WriteString("=============\n")
 			bb.WriteString("SESSIONS DUMP\n")
@@ -108,16 +107,23 @@ func dumpState() chan os.Signal {
 				bb.WriteString(fmt.Sprintf("Session: id=%s\n", sessionId))
 				bb.WriteString(process.CapacityQueue.Dump())
 			}
-			
+
 			bb.WriteString("\n")
 			bb.WriteString("====================\n")
 			bb.WriteString("TIMEOUT CANCELS DUMP\n")
 			bb.WriteString("====================\n")
-			for sessionId, _ := range timeoutCancels {
-				bb.WriteString("---\n")
+			for sessionId := range timeoutCancels {
 				bb.WriteString(fmt.Sprintf("Cancel: sessionId=%s\n", sessionId))
 			}
-			
+
+			bb.WriteString("\n")
+			bb.WriteString("===========\n")
+			bb.WriteString("LEASES DUMP\n")
+			bb.WriteString("===========\n")
+			for sessionId, lease := range leases {
+				bb.WriteString(fmt.Sprintf("Lease: sessionId=%s lease=%s\n", sessionId, lease))
+			}
+
 			log.Println(bb.String())
 		}
 	}()

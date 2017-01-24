@@ -174,10 +174,11 @@ func TestInvalidRequest(t *testing.T) {
 
 func TestDeleteSession(t *testing.T) {
 	process := createProcess(1, 1)
-	process.CapacityQueue.Push(emptyRequest.Context())
+	lease, _ := process.CapacityQueue.Push(emptyRequest.Context())
 	sessions = make(Sessions)
 	sessions["test-session"] = process
 	timeoutCancels["test-session"] = make(chan bool)
+	leases["test-session"] = lease
 	AssertThat(t, process.CapacityQueue.Size(), EqualTo{1})
 	reqUrl := createUrl("/wd/hub/firefox/33.0/test-process/1/session/test-session")
 	req, _ := http.NewRequest(http.MethodDelete, reqUrl, strings.NewReader("payload"))
