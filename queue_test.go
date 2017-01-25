@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"github.com/docker/distribution/context"
 )
 
 const (
@@ -23,6 +24,15 @@ func TestSize(t *testing.T) {
 	AssertThat(t, queue.Size(), EqualTo{1})
 	queue.Pop(lease)
 	AssertThat(t, queue.Size(), EqualTo{0})
+}
+
+func TestCleanupChannels(t *testing.T) {
+	queue := CreateQueue(1)
+	lease, _ := queue.Push(context.Background())
+	queue.SetCapacity(2)
+	AssertThat(t, len(queue.channels), EqualTo{2})
+	queue.Pop(lease)
+	AssertThat(t, len(queue.channels), EqualTo{1})
 }
 
 func TestSetCapacity(t *testing.T) {

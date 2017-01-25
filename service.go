@@ -120,7 +120,6 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		}
 		process.AwaitQueue <- struct{}{}
 		lease, disconnected := process.CapacityQueue.Push(r.Context())
-		requestInfo.lease = lease
 		<-process.AwaitQueue
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
@@ -129,6 +128,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				StatusCode: http.StatusOK,
 			}, nil
 		}
+		requestInfo.lease = lease
 	}
 
 	//Here we change request url
