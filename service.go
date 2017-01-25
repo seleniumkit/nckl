@@ -330,12 +330,13 @@ func isProcessActive(process *Process) bool {
 
 func calculateCapacities(browserState BrowserState, activeProcessesPriorities ProcessMetrics, maxConnections int) ProcessMetrics {
 	sumOfPriorities := 0
+	membersCount := storage.MembersCount()
 	for _, priority := range activeProcessesPriorities {
 		sumOfPriorities += priority
 	}
 	ret := ProcessMetrics{}
 	for processName, priority := range activeProcessesPriorities {
-		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections) / float64(storage.MembersCount()))
+		ret[processName] = round(float64(priority) / float64(sumOfPriorities) * float64(maxConnections) / float64(membersCount))
 	}
 	for processName := range browserState {
 		if _, ok := activeProcessesPriorities[processName]; !ok {
