@@ -124,7 +124,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		<-process.AwaitQueue
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
-			return &http.Response{}, nil
+			return &http.Response{
+				Body: ioutil.NopCloser(bytes.NewBufferString("")),
+				StatusCode: http.StatusOK,
+			}, nil
 		}
 	}
 
