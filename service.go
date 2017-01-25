@@ -249,6 +249,7 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 		sessionLock.Unlock()
 		process.CapacityQueue.Pop(lease)
 		log.Printf("[DELETED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
+		log.Println(process.CapacityQueue.Dump())
 	}
 	storage.DeleteSession(sessionId)
 }
