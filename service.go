@@ -185,7 +185,6 @@ func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http
 					sessions[sessionId] = process
 					timeoutCancels[sessionId] = cancelTimeout
 					leases[sessionId] = requestInfo.lease
-					log.Printf("leases = %v\n", leases)
 					sessionLock.Unlock()
 					storage.AddSession(sessionId)
 					go func() {
@@ -250,7 +249,6 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 		sessionLock.Unlock()
 		process.CapacityQueue.Pop(lease)
 		log.Printf("[DELETED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
-		log.Printf("leases = %v\n", leases)
 		log.Println(process.CapacityQueue.Dump())
 	}
 	storage.DeleteSession(sessionId)
