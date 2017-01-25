@@ -26,7 +26,6 @@ const (
 	badRequestPath    = "/badRequest"
 	badRequestMessage = "msg"
 	slash             = "/"
-	leaseKey          = "lease"
 )
 
 var (
@@ -44,47 +43,6 @@ func badRequest(w http.ResponseWriter, r *http.Request) {
 		msg = "bad request"
 	}
 	http.Error(w, msg, http.StatusBadRequest)
-}
-
-func queue(r *http.Request) {
-	requestInfo := getRequestInfo(r)
-
-	ctx, _ := context.WithTimeout(r.Context(), requestTimeout)
-	r = r.WithContext(ctx)
-
-	err := requestInfo.error
-	if err != nil {
-		log.Printf("[INVALID_REQUEST] [%v]\n", err)
-		redirectToBadRequest(r, err.Error())
-		return
-	}
-
-	// Only new session requests should wait in queue
-	command := requestInfo.command
-	browserId := requestInfo.browser
-	processName := requestInfo.processName
-	process := requestInfo.process
-	if isNewSessionRequest(r.Method, command) {
-		log.Printf("[CREATING] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
-		if process.CapacityQueue.Capacity() == 0 {
-			refreshCapacities(requestInfo.maxConnections, requestInfo.browserState)
-			if process.CapacityQueue.Capacity() == 0 {
-				log.Printf("[NOT_ENOUGH_SESSIONS] [%s %s] [%s]\n", browserId.Name, browserId.Version, processName)
-				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
-				return
-			}
-		}
-		process.AwaitQueue <- struct{}{}
-		lease, disconnected := process.CapacityQueue.Push(r.Context())
-		<-process.AwaitQueue
-		if disconnected {
-			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
-			return
-		}
-		ctx = context.WithValue(ctx, leaseKey, lease)
-		r = r.WithContext(ctx)
-	}
-
 }
 
 type requestInfo struct {
@@ -112,13 +70,6 @@ func getRequestInfo(r *http.Request) *requestInfo {
 		return &requestInfo{0, BrowserId{}, nil, "", nil, "", 0, err}
 	}
 
-	rawLease := r.Context().Value(leaseKey)
-	var lease Lease
-	if rawLease != nil {
-		lease = rawLease.(Lease)
-	} else {
-		lease = Lease(0)
-	}
 	browserId := BrowserId{Name: browserName, Version: version}
 
 	if _, ok := quotaState[browserId]; !ok {
@@ -129,7 +80,7 @@ func getRequestInfo(r *http.Request) *requestInfo {
 	maxConnections := quota.MaxConnections(quotaName, browserName, version)
 	process := getProcess(browserState, processName, priority, maxConnections)
 
-	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, lease, nil}
+	return &requestInfo{maxConnections, browserId, browserState, processName, process, command, 0, nil}
 }
 
 type transport struct {
@@ -137,14 +88,45 @@ type transport struct {
 }
 
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if r.URL.Path == badRequestPath {
+
+	requestInfo := getRequestInfo(r)
+
+	ctx, _ := context.WithTimeout(r.Context(), requestTimeout)
+	r = r.WithContext(ctx)
+
+	err := requestInfo.error
+	if err != nil {
+		log.Printf("[INVALID_REQUEST] [%v]\n", err)
+		redirectToBadRequest(r, err.Error())
 		return t.RoundTripper.RoundTrip(r)
 	}
 
-	requestInfo := getRequestInfo(r)
+	// Only new session requests should wait in queue
 	command := requestInfo.command
+	browserId := requestInfo.browser
+	processName := requestInfo.processName
 	process := requestInfo.process
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
+	
+	if isNewSessionRequest {
+		log.Printf("[CREATING] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
+		if process.CapacityQueue.Capacity() == 0 {
+			refreshCapacities(requestInfo.maxConnections, requestInfo.browserState)
+			if process.CapacityQueue.Capacity() == 0 {
+				log.Printf("[NOT_ENOUGH_SESSIONS] [%s %s] [%s]\n", browserId.Name, browserId.Version, processName)
+				redirectToBadRequest(r, "Not enough sessions for this process. Come back later.")
+				return t.RoundTripper.RoundTrip(r)
+			}
+		}
+		process.AwaitQueue <- struct{}{}
+		lease, disconnected := process.CapacityQueue.Push(r.Context())
+		requestInfo.lease = lease
+		<-process.AwaitQueue
+		if disconnected {
+			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
+			return &http.Response{}, nil
+		}
+	}
 
 	//Here we change request url
 	r.URL.Scheme = "http"
@@ -153,7 +135,6 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	resp, err := t.RoundTripper.RoundTrip(r)
 
-	browserId := requestInfo.browser
 	select {
 	case <-r.Context().Done():
 		{
@@ -438,7 +419,7 @@ func mux() http.Handler {
 		auth.HtpasswdFileProvider(usersFile),
 	)
 	proxyFunc := (&httputil.ReverseProxy{
-		Director:  queue,
+		Director: func(*http.Request) {},
 		Transport: &transport{http.DefaultTransport},
 	}).ServeHTTP
 	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, withCloseNotifier(proxyFunc)))
