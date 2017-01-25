@@ -39,13 +39,14 @@ type queueImpl struct {
 
 func (q *queueImpl) Push(context context.Context) (Lease, bool) {
 	q.lock.RLock()
-	ch := q.channels[q.currentLease]
+	lease := q.currentLease
+	ch := q.channels[lease]
 	q.lock.RUnlock()
 	select {
 	case <-context.Done():
 		return 0, true
 	case ch <- struct{}{}:
-		return q.currentLease, false
+		return lease, false
 	}
 }
 
