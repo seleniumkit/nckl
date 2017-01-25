@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 )
 
@@ -65,7 +64,7 @@ func (q *queueImpl) cleanupChannels() {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	for lease, ch := range q.channels {
-		if lease != q.currentLease && len(ch) == 0 {
+		if lease < q.currentLease && len(ch) == 0 {
 			close(ch)
 			delete(q.channels, lease)
 		}
@@ -101,15 +100,12 @@ func (q *queueImpl) SetCapacity(newCapacity int) {
 
 func (q *queueImpl) Dump() string {
 	var bb bytes.Buffer
-	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d\n", q.Capacity(), q.Size()))
-	leases := make([]int, len(q.channels))
-	for lease := range q.channels {
-		leases = append(leases, int(lease))
-	}
-	sort.Ints(leases)
-	for lease := range leases {
-		ch := q.channels[Lease(lease)]
-		bb.WriteString(fmt.Sprintf("ch=%d cap=%d len=%d\n", lease, cap(ch), len(ch)))
+	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d currentLease=%d\n", q.Capacity(), q.Size(), q.currentLease))
+	for i := 0; i <= int(q.currentLease); i++ {
+		lease := Lease(i)
+		if ch, ok := q.channels[lease]; ok {
+			bb.WriteString(fmt.Sprintf("ch=%d cap=%d len=%d\n", lease, cap(ch), len(ch)))
+		}
 	}
 	return bb.String()
 }

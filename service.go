@@ -118,6 +118,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				return t.RoundTripper.RoundTrip(r)
 			}
 		}
+		log.Println(process.CapacityQueue.Dump())
 		process.AwaitQueue <- struct{}{}
 		lease, disconnected := process.CapacityQueue.Push(r.Context())
 		<-process.AwaitQueue
@@ -359,6 +360,7 @@ func updateProcessCapacities(browserState BrowserState, newCapacities ProcessMet
 	for processName, newCapacity := range newCapacities {
 		process := browserState[processName]
 		process.CapacityQueue.SetCapacity(newCapacity)
+		log.Printf("Updated process %s capacity to %d: %s\n", processName, newCapacity, process.CapacityQueue.Dump())
 	}
 }
 
