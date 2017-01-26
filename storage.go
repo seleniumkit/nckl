@@ -4,7 +4,7 @@ import (
 	"context"
 	client "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"log"
+	"fmt"
 )
 
 type Storage interface {
@@ -35,11 +35,13 @@ func (storage *EtcdStorage) MembersCount() int {
 func (storage *EtcdStorage) AddSession(id string) {
 	lease, err := storage.c.Grant(storage.ctx, int64(requestTimeout))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err.Error())
+		return
 	}
 	_, err = storage.c.Put(storage.ctx, id, "", client.WithLease(lease.ID))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err.Error())
+		return
 	}
 }
 

@@ -231,19 +231,18 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 
 	sessionLock.RLock()
 	process, ok := sessions[sessionId]
-	cancel, _ := timeoutCancels[sessionId]
 	sessionLock.RUnlock()
 	if ok {
 		if timedOut {
 			log.Printf("[TIMED_OUT] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
 		}
 		log.Printf("[DELETING] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
-		if cancel != nil {
-			close(cancel)
-		}
 		sessionLock.Lock()
 		delete(sessions, sessionId)
-		delete(timeoutCancels, sessionId)
+		if cancel, ok := timeoutCancels[sessionId]; ok {
+			delete(timeoutCancels, sessionId)
+			close(cancel)
+		}
 		lease := leases[sessionId]
 		delete(leases, sessionId)
 		sessionLock.Unlock()
