@@ -24,6 +24,7 @@ const (
 	statusPath        = "/status"
 	queuePath         = wdHub
 	badRequestPath    = "/badRequest"
+	pingPath          = "/ping"
 	badRequestMessage = "msg"
 	slash             = "/"
 )
@@ -107,7 +108,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	processName := requestInfo.processName
 	process := requestInfo.process
 	isNewSessionRequest := isNewSessionRequest(r.Method, command)
-	
+
 	if isNewSessionRequest {
 		log.Printf("[CREATING] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 		if process.CapacityQueue.Capacity() == 0 {
@@ -124,7 +125,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
 			return &http.Response{
-				Body: ioutil.NopCloser(bytes.NewBufferString("")),
+				Body:       ioutil.NopCloser(bytes.NewBufferString("")),
 				StatusCode: http.StatusOK,
 			}, nil
 		}
@@ -394,6 +395,10 @@ func status(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&status)
 }
 
+func ping(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("OK\n"))
+}
+
 func requireBasicAuth(authenticator *auth.BasicAuth, handler func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return authenticator.Wrap(func(w http.ResponseWriter, r *auth.AuthenticatedRequest) {
 		handler(w, &r.Request)
@@ -422,11 +427,12 @@ func mux() http.Handler {
 		auth.HtpasswdFileProvider(usersFile),
 	)
 	proxyFunc := (&httputil.ReverseProxy{
-		Director: func(*http.Request) {},
+		Director:  func(*http.Request) {},
 		Transport: &transport{http.DefaultTransport},
 	}).ServeHTTP
 	mux.HandleFunc(queuePath, requireBasicAuth(authenticator, withCloseNotifier(proxyFunc)))
 	mux.HandleFunc(statusPath, requireBasicAuth(authenticator, status))
 	mux.HandleFunc(badRequestPath, badRequest)
+	mux.HandleFunc(pingPath, ping)
 	return mux
 }

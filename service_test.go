@@ -78,6 +78,12 @@ func TestStatus(t *testing.T) {
 	AssertThat(t, rsp, Code{http.StatusOK})
 }
 
+func TestPing(t *testing.T) {
+	rsp, err := http.Post(createUrl("/ping"), "", nil)
+	AssertThat(t, err, Is{nil})
+	AssertThat(t, rsp, Code{http.StatusOK})
+}
+
 func createUrl(path string) string {
 	parsedUrl, _ := url.Parse(fmt.Sprintf("%s%s", srv.URL, path))
 	parsedUrl.User = url.UserPassword(username, password)
