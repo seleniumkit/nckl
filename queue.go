@@ -102,6 +102,8 @@ func (q *queueImpl) SetCapacity(newCapacity int) {
 func (q *queueImpl) Dump() string {
 	var bb bytes.Buffer
 	bb.WriteString(fmt.Sprintf("Queue: cap=%d len=%d currentLease=%d\n", q.Capacity(), q.Size(), q.currentLease))
+	q.lock.RLock()
+	defer q.lock.RUnlock()
 	for i := 0; i <= int(q.currentLease); i++ {
 		lease := Lease(i)
 		if ch, ok := q.channels[lease]; ok {
