@@ -118,7 +118,6 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				return t.RoundTripper.RoundTrip(r)
 			}
 		}
-		log.Println(process.CapacityQueue.Dump())
 		process.AwaitQueue <- struct{}{}
 		lease, disconnected := process.CapacityQueue.Push(r.Context())
 		<-process.AwaitQueue
@@ -248,7 +247,6 @@ func deleteSessionWithTimeout(sessionId string, requestInfo *requestInfo, timedO
 		sessionLock.Unlock()
 		process.CapacityQueue.Pop(lease)
 		log.Printf("[DELETED] [%s %s] [%s] [%d] [%s]\n", browserId.Name, browserId.Version, processName, process.Priority, sessionId)
-		log.Println(process.CapacityQueue.Dump())
 	}
 	storage.DeleteSession(sessionId)
 }
@@ -360,7 +358,6 @@ func updateProcessCapacities(browserState BrowserState, newCapacities ProcessMet
 	for processName, newCapacity := range newCapacities {
 		process := browserState[processName]
 		process.CapacityQueue.SetCapacity(newCapacity)
-		log.Printf("Updated process %s capacity to %d: %s\n", processName, newCapacity, process.CapacityQueue.Dump())
 	}
 }
 
