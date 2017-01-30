@@ -4,8 +4,7 @@ import (
 	"context"
 	client "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
-	"fmt"
-	"strconv"
+	"log"
 )
 
 type Storage interface {
@@ -36,12 +35,12 @@ func (storage *EtcdStorage) MembersCount() int {
 func (storage *EtcdStorage) AddSession(id string) {
 	lease, err := storage.c.Grant(storage.ctx, int64(requestTimeout))
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
-	_, err = storage.c.Put(storage.ctx, id, string(lease.ID), client.WithLease(lease.ID))
+	_, err = storage.c.Put(storage.ctx, id, "", client.WithLease(lease.ID))
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 }
@@ -49,12 +48,12 @@ func (storage *EtcdStorage) AddSession(id string) {
 func (storage *EtcdStorage) DeleteSession(id string) {
 	resp, err := storage.c.Get(storage.ctx, id)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return
 	}
 	for _, 	ev := range resp.Kvs {
-		leaseId, err := strconv.Atoi(string(ev.Value))
-		if (err != nil) {
+		leaseId := ev.Lease
+		if (leaseId == 0) {
 			storage.c.Delete(storage.ctx, id)
 		} else {
 			//Automatically deletes key
