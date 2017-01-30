@@ -124,10 +124,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		<-process.AwaitQueue
 		if disconnected {
 			log.Printf("[CLIENT_DISCONNECTED_FROM_QUEUE] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, processName, process.Priority)
-			return &http.Response{
-				Body:       ioutil.NopCloser(bytes.NewBufferString("")),
-				StatusCode: http.StatusOK,
-			}, nil
+			return emptyResponse(), nil
 		}
 		requestInfo.lease = lease
 	}
@@ -144,6 +141,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		{
 			log.Printf("[CLIENT_DISCONNECTED] [%s %s] [%s] [%d]\n", browserId.Name, browserId.Version, requestInfo.processName, process.Priority)
 			cleanupQueue(isNewSessionRequest, requestInfo)
+			return emptyResponse(), nil
 		}
 	default:
 		{
@@ -159,6 +157,13 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		r.Body.Close()
 	}
 	return resp, err
+}
+
+func emptyResponse() *http.Response {
+	return &http.Response{
+		Body:       ioutil.NopCloser(bytes.NewBufferString("")),
+		StatusCode: http.StatusOK,
+	}
 }
 
 func processResponse(isNewSessionRequest bool, requestInfo *requestInfo, r *http.Request, resp *http.Response) {
